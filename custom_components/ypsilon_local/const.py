@@ -11,8 +11,9 @@ MIN_SCAN_INTERVAL: Final = 15
 MAX_SCAN_INTERVAL: Final = 3600
 UPDATE_INTERVAL: Final = timedelta(seconds=DEFAULT_SCAN_INTERVAL)
 
-SUPPORTED_DEVICE_MODEL: Final = 9
+# Accepted controller models (F79D field 1) and their names live in models.py.
 EXPECTED_DEVTYPE: Final = 0x520F
+# Fallbacks before the first state read.
 MODEL_NAME: Final = "Ypsilon G6"
 MANUFACTURER: Final = "ATH / BWT / Runxin"
 

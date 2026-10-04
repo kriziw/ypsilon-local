@@ -6,8 +6,8 @@
       "discovery_confirm": {"title": "Ypsilon detectat", "description": "S'ha detectat un dispositiu a la xarxa ({host}). Vols configurar-lo?"},
       "reconfigure": {"title": "Canvia l'adreça IP", "data": {"host": "Amfitrió"}}
     },
-    "error": {"cannot_connect": "No s'ha pogut connectar amb el dispositiu.", "unsupported_device": "Model no suportat."},
-    "abort": {"already_configured": "Aquest dispositiu ja està configurat.", "wrong_device": "Aquesta IP correspon a un altre dispositiu.", "reconfigure_successful": "Adreça actualitzada.", "unsupported_device": "Aquest dispositiu no és un Ypsilon G6 (model 9).", "cannot_connect": "No s'ha pogut connectar amb el dispositiu."}
+    "error": {"cannot_connect": "No s'ha pogut connectar amb el dispositiu.", "unsupported_device": "Model de controlador no compatible."},
+    "abort": {"already_configured": "Aquest dispositiu ja està configurat.", "wrong_device": "Aquesta IP correspon a un altre dispositiu.", "reconfigure_successful": "Adreça actualitzada.", "unsupported_device": "Aquest model de controlador no és compatible (compatibles: Ypsilon G6 model 9, Euro-Clear Midnight model 12).", "cannot_connect": "No s'ha pogut connectar amb el dispositiu."}
   },
   "options": {"step": {"init": {
     "title": "Opcions de Ypsilon",

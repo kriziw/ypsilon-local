@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [2.7.0] - 2026-10-04
+
+### Added
+- Support for the **Euro-Clear Midnight** (ECOPRO+ head), which reports Runxin controller model **12** behind the same BroadLink BL3372 (`0x520F`). A full read of fields 1–52 from a real Midnight 25 decodes consistently with the F79D map: clock, hardness, salt, programme times, capacity and volumes all match the controller. The captured frames are kept as regression tests.
+- `models.py`: the accepted controller models with their entry title, device-registry model and manufacturer, kept free of Home Assistant imports so they can be unit-tested.
+
+### Changed
+- Setup and DHCP discovery accept models 9 and 12. The config entry and device are named after the reported model.
+- Resin volume is scaled per model. Model 12 reports tenths of a litre (raw 250 on a 25 L Midnight 25).
+- Enum sensors report an unrecognised controller code as unknown rather than raising, keeping the code in `raw_code`. Model 12 reports output relay mode 2.
+
+### Notes
+- Model 12 controls use the same field encodings as model 9 and are confirmed by fresh read-back, so a write the controller does not adopt is reported as not confirmed. They are not yet `HARDWARE_WRITE_VERIFIED` for model 12.
+
 ## [2.6.3] - 2026-09-13
 
 ### Fixed

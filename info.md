@@ -1,6 +1,10 @@
-# Ypsilon 2.6.3
+# Ypsilon 2.7.0
 
-Local Home Assistant integration for compatible Runxin F79D / BroadLink BL3372 water softeners, tested with ATH/BWT Ypsilon G6.
+Local Home Assistant integration for compatible Runxin F79D / BroadLink BL3372 water softeners, tested with ATH/BWT Ypsilon G6 and Euro-Clear Midnight.
+
+## 2.7.0
+
+Adds the **Euro-Clear Midnight** (Runxin controller model 12, BroadLink BL3372 `0x520F`). Its real controller state decodes consistently with the F79D map, so it gets the same sensors and controls as the Ypsilon G6. Every write is still confirmed by fresh read-back.
 
 ## 2.6.3
 
@@ -22,4 +26,4 @@ Highlights:
 
 No entity registry migration is required. The existing flow-rate cutoff number retains the same unique ID, range, unit and translations; only its raw wire encoding/decoding is corrected.
 
-The transport-neutral `runxin/` layer remains independent from Home Assistant and BroadLink. The Home Assistant integration continues to support only the verified F79D model 9 + BroadLink BL3372 (`0x520F`) combination until additional hardware is tested.
+The transport-neutral `runxin/` layer remains independent from Home Assistant and BroadLink. The Home Assistant integration supports BroadLink BL3372 (`0x520F`) with Runxin controller model 9 (Ypsilon G6) and, since 2.7.0, model 12 (Euro-Clear Midnight).

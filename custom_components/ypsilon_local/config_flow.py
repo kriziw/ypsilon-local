@@ -31,8 +31,14 @@ from .const import (
     MIN_ACTIVE_SCAN_INTERVAL,
     MIN_CLOCK_TOLERANCE,
     MIN_SCAN_INTERVAL,
-    SUPPORTED_DEVICE_MODEL,
 )
+from .models import controller_model, is_supported_model
+
+
+def _entry_title(identity: dict[str, Any]) -> str:
+    model = controller_model(identity.get("deviceModel"))
+    return model.title if model is not None else "Ypsilon"
+
 
 PROBE_ERRORS = (
     broadlink.exceptions.BroadlinkException,
@@ -79,7 +85,7 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             identity, _ = await self._async_probe(self.discovered_host)
         except PROBE_ERRORS:
             return self.async_abort(reason="cannot_connect")
-        if identity.get("deviceModel") != SUPPORTED_DEVICE_MODEL:
+        if not is_supported_model(identity.get("deviceModel")):
             return self.async_abort(reason="unsupported_device")
 
         self.context["title_placeholders"] = {"host": self.discovered_host}
@@ -96,10 +102,10 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except PROBE_ERRORS:
                 errors["base"] = "cannot_connect"
             else:
-                if identity.get("deviceModel") != SUPPORTED_DEVICE_MODEL:
+                if not is_supported_model(identity.get("deviceModel")):
                     return self.async_abort(reason="unsupported_device")
                 return self.async_create_entry(
-                    title="Ypsilon G6", data={CONF_HOST: self.discovered_host}
+                    title=_entry_title(identity), data={CONF_HOST: self.discovered_host}
                 )
 
         self._set_confirm_only()
@@ -120,7 +126,7 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except PROBE_ERRORS:
                 errors["base"] = "cannot_connect"
             else:
-                if identity.get("deviceModel") != SUPPORTED_DEVICE_MODEL:
+                if not is_supported_model(identity.get("deviceModel")):
                     errors["base"] = "unsupported_device"
                 elif not mac:
                     errors["base"] = "cannot_connect"
@@ -130,7 +136,7 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         updates={CONF_HOST: host}, reload_on_update=True
                     )
                     return self.async_create_entry(
-                        title="Ypsilon G6", data={CONF_HOST: host}
+                        title=_entry_title(identity), data={CONF_HOST: host}
                     )
 
         return self.async_show_form(
