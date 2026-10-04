@@ -6,8 +6,8 @@
       "discovery_confirm": {"title": "Ypsilon Discovered", "description": "A device was discovered at {host}. Do you want to configure it?"},
       "reconfigure": {"title": "Change IP address", "data": {"host": "Host"}}
     },
-    "error": {"cannot_connect": "Failed to connect to the device.", "unsupported_device": "Unsupported device model."},
-    "abort": {"already_configured": "Device is already configured.", "wrong_device": "That IP belongs to a different device.", "reconfigure_successful": "Address updated.", "unsupported_device": "This device is not a Ypsilon G6 (model 9).", "cannot_connect": "Could not connect to the device."}
+    "error": {"cannot_connect": "Failed to connect to the device.", "unsupported_device": "Unsupported controller model."},
+    "abort": {"already_configured": "Device is already configured.", "wrong_device": "That IP belongs to a different device.", "reconfigure_successful": "Address updated.", "unsupported_device": "This controller model is not supported (supported: Ypsilon G6 model 9, Euro-Clear Midnight model 12).", "cannot_connect": "Could not connect to the device."}
   },
   "options": {
     "step": {

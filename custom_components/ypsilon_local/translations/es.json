@@ -6,8 +6,8 @@
       "discovery_confirm": {"title": "Ypsilon detectado", "description": "Se ha detectado un dispositivo en {host}. ¿Quieres configurarlo?"},
       "reconfigure": {"title": "Cambiar dirección IP", "data": {"host": "Host"}}
     },
-    "error": {"cannot_connect": "No se ha podido conectar con el dispositivo.", "unsupported_device": "Modelo de dispositivo no compatible."},
-    "abort": {"already_configured": "Este dispositivo ya está configurado.", "wrong_device": "Esa IP pertenece a otro dispositivo.", "reconfigure_successful": "Dirección actualizada.", "unsupported_device": "Este dispositivo no es un Ypsilon G6 (modelo 9).", "cannot_connect": "No se ha podido conectar con el dispositivo."}
+    "error": {"cannot_connect": "No se ha podido conectar con el dispositivo.", "unsupported_device": "Modelo de controlador no compatible."},
+    "abort": {"already_configured": "Este dispositivo ya está configurado.", "wrong_device": "Esa IP pertenece a otro dispositivo.", "reconfigure_successful": "Dirección actualizada.", "unsupported_device": "Este modelo de controlador no es compatible (compatibles: Ypsilon G6 modelo 9, Euro-Clear Midnight modelo 12).", "cannot_connect": "No se ha podido conectar con el dispositivo."}
   },
   "options": {"step": {"init": {
     "title": "Opciones de Ypsilon",

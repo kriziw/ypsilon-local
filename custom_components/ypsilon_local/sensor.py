@@ -19,6 +19,7 @@ from homeassistant.helpers.typing import StateType
 
 from .const import FLOW_RATE_SCALE_BY_UNIT, FLOW_RATE_SCALE_DEFAULT
 from .entity import YpsilonEntity
+from .models import CONTROLLER_MODELS, resin_volume_litres
 from .runxin.semantics import (
     BRINE_DRAW_MODE_KEYS,
     DEVICE_LANGUAGE_KEYS,
@@ -46,7 +47,7 @@ FLOW_UNITS = {
     1: UnitOfVolumeFlowRate.LITERS_PER_MINUTE,
     2: UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
 }
-MODEL_NAMES = {9: "F79D / Ypsilon G6"}
+MODEL_NAMES = {code: model.model_name for code, model in CONTROLLER_MODELS.items()}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -335,8 +336,16 @@ class YpsilonSensor(YpsilonEntity, SensorEntity):
             return REGENERATION_PATTERN_KEYS.get(value)
         if self.entity_description.key == "work_pattern":
             return WORK_PATTERN_KEYS.get(value)
+        if self.entity_description.key == "resin_volume":
+            return resin_volume_litres(value, self.coordinator.data.get("deviceModel"))
         if self.entity_description.value_map is not None:
-            return self.entity_description.value_map.get(value, str(value))
+            mapped = self.entity_description.value_map.get(value, str(value))
+            # An unrecognised code (e.g. relay mode 2 on model 12) is unknown, not an error;
+            # the raw code stays available as the raw_code attribute.
+            options = self.entity_description.options
+            if self.entity_description.device_class == SensorDeviceClass.ENUM and options and mapped not in options:
+                return None
+            return mapped
 
         if self.entity_description.unit_kind == "flow":
             unit_code = self.coordinator.data.get("waterVolumeUnit")

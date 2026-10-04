@@ -11,6 +11,7 @@ from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, Device
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER, MODEL_NAME
+from .models import controller_model
 from .coordinator import YpsilonDataUpdateCoordinator
 
 
@@ -92,11 +93,12 @@ class YpsilonEntity(CoordinatorEntity[YpsilonDataUpdateCoordinator]):
             connections.add((CONNECTION_NETWORK_MAC, unique_id))
 
         firmware = self.coordinator.client.firmware
+        model = controller_model((self.coordinator.data or {}).get("deviceModel"))
         return DeviceInfo(
             identifiers={(DOMAIN, unique_id or self._entry.entry_id)},
             connections=connections,
-            manufacturer=MANUFACTURER,
-            model=MODEL_NAME,
+            manufacturer=model.manufacturer if model else MANUFACTURER,
+            model=model.model_name if model else MODEL_NAME,
             name=self._entry.title,
             sw_version=str(firmware) if firmware is not None else None,
         )

@@ -25,11 +25,12 @@ The integration communicates directly over the LAN and does not depend on the ve
 
 ## Supported hardware
 
-Verified Home Assistant target:
+Supported Home Assistant targets (BroadLink BL3372 module, devtype `0x520F`):
 
-- ATH/BWT Ypsilon G6
-- Runxin F79D valve/controller
-- BroadLink BL3372 module, BroadLink devtype `0x520F`
+| Product | Runxin controller model (field 1) | Evidence |
+|---|---|---|
+| ATH/BWT Ypsilon G6 | 9 (F79D) | Reads and writes verified on hardware |
+| Euro-Clear Midnight (ECOPRO+ head) | 12 | Full state read decodes consistently with the F79D map. Writes use the same encodings and are confirmed by read-back, but are not yet hardware-verified |
 
 Other rebranded devices using the same controller/module may work, but compatibility must be verified per model and firmware. Separating protocol and transport does **not** imply that every Runxin or non-BroadLink device is supported.
 
@@ -40,7 +41,7 @@ Other rebranded devices using the same controller/module may work, but compatibi
 Until the repository is accepted into the HACS default catalog, add it as a custom repository:
 
 1. HACS → **Integrations** → menu → **Custom repositories**.
-2. Add `https://github.com/Danirv/ypsilon-local` as an **Integration**.
+2. Add `https://github.com/Danirv/ypsilon-local` as an **Integration**. For Euro-Clear Midnight (model 12) support before it is merged upstream, use the fork `https://github.com/kriziw/ypsilon-local` instead.
 3. Install **Ypsilon** and restart Home Assistant.
 4. Go to **Settings → Devices & services → Add integration** and search for **Ypsilon**.
 
