@@ -127,8 +127,8 @@ class ProbeValidation(unittest.TestCase):
     def test_invalid_identity_response_does_not_expand_to_full_scan(self):
         device = MockWireDevice()
         original = device.send_packet
-        def invalid(packet_type, payload):
-            reply = bytearray(original(packet_type, payload))
+        async def invalid(packet_type, payload):
+            reply = bytearray(await original(packet_type, payload))
             if packet_type == 0x6A and payload != b"\x68":
                 reply[-1] ^= 1
             return bytes(reply)
@@ -212,7 +212,7 @@ class ProbeValidation(unittest.TestCase):
             (0x6A, bytes(0x50)), (0x6A, b"\x72"), (0x66, bytes(16)),
         ):
             with self.assertRaises(probe.ProbeError):
-                device.send_packet(packet_type, payload)
+                run(device.send_packet(packet_type, payload))
         self.assertEqual(device.calls, [])
 
     def test_bulk_failure_falls_back_and_recovers_all_fields(self):
@@ -267,12 +267,12 @@ class ProbeValidation(unittest.TestCase):
         device = MockWireDevice()
         session = probe.ReadSession(device, 5, time.monotonic() - 1)
         with self.assertRaises(probe.ProbeError):
-            session.read([1])
+            run(session.read([1]))
         self.assertEqual(device.calls, [])
         session.deadline = time.monotonic() + 20
         session.query_count = probe.MAX_QUERIES
         with self.assertRaises(probe.ProbeError):
-            session.read([1])
+            run(session.read([1]))
         self.assertEqual(device.calls, [])
 
     def test_transient_error_only_retries_once(self):
@@ -298,7 +298,20 @@ class ProbeValidation(unittest.TestCase):
         self.assertEqual(report["summary"]["fields_observed_count"], 2)
         self.assertEqual(len(report["fields"]), 2)
 
-    def test_counter_mismatch_stops_authentication_before_any_query(self):
+    def test_counter_mismatch_stops_queries_before_any_field(self):
+        """Renamed from ..._stops_authentication_before_any_query.
+
+        BEHAVIOUR CHANGE under python-broadlink 1.0. The probe polices
+        the counter inside the wrapper it installs over
+        device.send_packet, but 1.0 authenticates through the private
+        _exchange, below that wrapper, so the probe no longer sees the
+        authentication exchange at all - the library validates that
+        counter itself.
+
+        What remains observable, and is what this now asserts: a
+        desynchronised counter is caught before any field value is
+        accepted into the report.
+        """
         device = MockWireDevice()
         original = device.send_packet
         async def wrong_counter(packet_type, payload):
@@ -309,9 +322,9 @@ class ProbeValidation(unittest.TestCase):
             return reply
         device.send_packet = wrong_counter
         report = run_device(device)
-        self.assertFalse(report["authentication"]["ok"])
-        self.assertEqual(report["authentication"]["error"]["reason"], "broadlink_counter_mismatch")
-        self.assertEqual(len(device.calls), 1)
+        self.assertTrue(report["authentication"]["ok"])
+        self.assertEqual(report["summary"]["fields_observed_count"], 0)
+        self.assertEqual(report["scan_stop_reason"], "broadlink_counter_mismatch")
 
 
 if __name__ == "__main__":

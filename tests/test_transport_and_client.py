@@ -304,7 +304,9 @@ def test_short_real_auth_response_is_transport_failure_not_rejection(monkeypatch
         run(transport.transact(b"frame"))
     assert not isinstance(caught.value, transport_mod.BroadlinkAuthenticationError)
     assert transport._device is None
-    assert [call.args[0] for call in device.send_packet.await_args_list] == [0x65]
+    # The command byte of each framed request: authentication only,
+    # so no Runxin frame reached the wire.
+    assert [call.args[0][0x26] for call in device._exchange.await_args_list] == [0x65]
     assert transport.reauth_count == 0
 
 

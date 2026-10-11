@@ -524,4 +524,6 @@ async def test_real_short_auth_response_is_connection_error_even_with_advertised
     assert "error_type=ValueError" in caplog.text
     assert "result=cannot_connect" in caplog.text
     assert TEST_HOST not in caplog.text
-    assert [call.args[0] for call in device.send_packet.call_args_list] == [0x65]
+    # The command byte of each framed request: authentication only,
+    # so no Runxin frame reached the wire.
+    assert [call.args[0][0x26] for call in device._exchange.call_args_list] == [0x65]

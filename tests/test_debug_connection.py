@@ -132,4 +132,6 @@ def test_real_broadlink_short_auth_reply_is_a_sanitized_report(monkeypatch):
         "attempted": True, "ok": False, "error_type": "ValueError", "error_code": None,
     }
     assert report["firmware"] == {"attempted": False}
-    assert [call.args[0] for call in device.send_packet.call_args_list] == [0x65]
+    # The command byte of each framed request: authentication only,
+    # so no Runxin frame reached the wire.
+    assert [call.args[0][0x26] for call in device._exchange.call_args_list] == [0x65]
