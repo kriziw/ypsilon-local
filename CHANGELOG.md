@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [2.8.0] - 2026-10-11
+
+### Changed
+- **Migrated to the `python-broadlink` distribution, pinned at `1.0.6`.** Home Assistant Core 2026.10 moved its own BroadLink integration to the same distribution. Both `broadlink` and `python-broadlink` unpack into the same `site-packages/broadlink/` module directory, so a custom integration requiring the old `broadlink==0.19.0` had its requirement installed over the top of core's copy, replacing `exceptions.py` with a version that has no `EndpointClosedError`. Core's BroadLink integration then failed to import and every BroadLink device in the installation disappeared, including unrelated thermostats. Home Assistant only compares distribution names when checking requirements, so `python-broadlink==1.0.6` still counted as satisfied and was never reinstalled. See home-assistant/core#184800.
+- The transport, F79D client and `YpsilonLocalClient` are now **asynchronous**. `python-broadlink` 1.0 made `hello`, `auth`, `get_fwversion` and `send_packet` coroutines with no synchronous compatibility layer; `decrypt` stayed synchronous. The seven `async_add_executor_job` hops in `__init__.py`, `coordinator.py` and `config_flow.py` are gone and the integration awaits the library directly. `threading.Lock` became `asyncio.Lock` in all three layers.
+- Session teardown uses `await device.aclose()`. 1.0 owns the UDP endpoint itself and no longer exposes a `sock` attribute.
+- `broadlink.hello()` raises `NetworkTimeoutError` instead of returning `None`, so the unreachable-device case is now translated from that exception.
+
+### Added
+- A read transaction that fails with `ConnectionClosedError` - including `EndpointClosedError`, new in `python-broadlink` 1.0.2 - now spends the existing session budget on one fresh session instead of failing outright. 1.0 keeps one persistent UDP endpoint per device, so a mid-request close is a new and recoverable failure mode. The write path deliberately does **not** retry it: a closed endpoint after submission is exactly the ambiguous case the write-once rule exists for.
+- Regression tests for both halves of that asymmetry.
+
+### Notes
+- `python-broadlink` 1.0 requires **Python 3.13 or newer**. CI already pinned 3.13.
+- The `runxin/` codec is unchanged and still imports neither `homeassistant` nor `broadlink`. Only the transport contract became awaitable.
+- No wire-format change. Field encodings, the write-once rule and strict post-write read-back reconciliation all behave exactly as in 2.7.0.
+
 ## [2.7.0] - 2026-10-04
 
 ### Added
