@@ -1,4 +1,6 @@
+<!-- x-release-please-start-version -->
 # Runxin Local 2.10.0
+<!-- x-release-please-end -->
 
 Local Home Assistant integration for compatible Runxin F79D / BroadLink BL3372 water softeners, tested with ATH/BWT Ypsilon G6 and Euro-Clear Midnight.
 
