@@ -41,12 +41,12 @@ async def test_model1_rejects_pending_control_fields_before_any_io(hass, field, 
     with pytest.raises(ServiceValidationError) as err:
         await coordinator.async_write_and_verify({field: value})
     assert err.value.translation_key == 'model_write_not_allowed'
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
     coordinator._async_strict_read.assert_not_awaited()
     with pytest.raises(ServiceValidationError):
         await coordinator.async_start_regeneration()
     assert not coordinator._regeneration_requested
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_auto_clock_and_reload_cannot_override_configured_model1_policy(ha
     assert not coordinator.read_only
     assert coordinator.allowed_write_fields == {4}
     assert coordinator.data['_clockSyncs'] == 0
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
     coordinator._async_strict_read.assert_not_awaited()
     with pytest.raises(ServiceValidationError):
         await coordinator.async_write_and_verify({43: 25})
@@ -77,7 +77,7 @@ async def test_model1_poll_retains_complete_state_and_sends_no_clock_write(hass,
         assert data['resinVolume'] == 240
         assert data['_rawFieldBytes'][26] == [240, 0]
         assert data['_clockSyncs'] == 0
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -91,7 +91,7 @@ async def test_existing_models_keep_first_refresh_clock_sync(hass, monkeypatch, 
     coordinator._async_strict_read = AsyncMock(side_effect=[baseline, {**baseline, 'currentTime': '12:00:00'}])
     data = baseline.copy()
     await coordinator._async_sync_clock_if_needed(data)
-    client.write_fields.assert_called_once_with({4: (12, 0)})
+    client.write_fields.assert_awaited_once_with({4: (12, 0)})
     assert data['_clockSyncs'] == 1
 
 
@@ -105,7 +105,7 @@ async def test_fresh_model1_identity_blocks_automatic_clock_but_retains_manual_p
     assert not coordinator.read_only
     assert coordinator.allowed_write_fields == {4}
     assert not coordinator.automatic_clock_allowed
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,7 @@ async def test_model1_startup_and_unload_forward_clock_platforms_without_writes(
     client.read_state.return_value = reported_state()
     forward = AsyncMock()
     unload = AsyncMock(return_value=True)
-    monkeypatch.setattr(init_mod, '_get_store', Mock(return_value=SimpleNamespace(client=client, field52_cache={})))
+    monkeypatch.setattr(init_mod, '_get_store', AsyncMock(return_value=SimpleNamespace(client=client, field52_cache={})))
     monkeypatch.setattr(hass.config_entries, 'async_forward_entry_setups', forward)
     monkeypatch.setattr(hass.config_entries, 'async_unload_platforms', unload)
     for _ in range(2):
@@ -126,7 +126,7 @@ async def test_model1_startup_and_unload_forward_clock_platforms_without_writes(
         await entry.runtime_data.async_shutdown()
     assert forward.call_args.args[1] == init_mod.PLATFORMS
     assert unload.call_args.args[1] == init_mod.PLATFORMS
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -142,7 +142,7 @@ async def test_default_model1_setup_creates_only_validated_manual_clock_controls
     assert isinstance(entities[1], load('button').YpsilonSyncClockButton)
     base = entry.unique_id or entry.entry_id
     assert {e.unique_id for e in entities} == {f'{base}_device_clock', f'{base}_sync_clock'}
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -157,7 +157,7 @@ async def test_advanced_services_reject_loaded_model1_entries(hass, monkeypatch)
         with pytest.raises(ServiceValidationError) as err:
             await hass.services.async_call('ypsilon_local', name, {'config_entry_id': 'test', **extra}, blocking=True)
         assert err.value.translation_key == 'model_write_not_allowed'
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -271,7 +271,7 @@ async def test_future_partial_permissions_filter_control_entities_without_copyin
     assert isinstance(entities[1], load('button').YpsilonSyncClockButton)
     with pytest.raises(ServiceValidationError):
         await coordinator.async_write_and_verify({43: 25})
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio

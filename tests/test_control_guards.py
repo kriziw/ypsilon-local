@@ -28,7 +28,7 @@ def _coordinator(hass, model=9, *, data=None, options=None):
         data=data or {}, options=options if options is not None else {"auto_sync_clock": False}, source=config_entries.SOURCE_USER,
         version=2, minor_version=1, discovery_keys=MappingProxyType({}), subentries_data=[],
     )
-    client = Mock()
+    client = Mock(read_state=AsyncMock(), read_identity=AsyncMock(), write_fields=AsyncMock(), close=AsyncMock(), revoke_writes=AsyncMock())
     coordinator = Coordinator(hass, entry, client, {})
     coordinator.data = {"deviceModel": model, "station": 0, "vacationPattern": False}
     coordinator.async_set_updated_data = Mock()
@@ -44,7 +44,7 @@ async def test_regeneration_preserves_command_and_confirms_advanced_phase(hass, 
         {"station": 0, "vacationPattern": False}, {"station": 2, "vacationPattern": False},
     ])
     await button_mod.YpsilonRegenerationButton(coordinator, entry).async_press()
-    client.write_fields.assert_called_once_with({34: 1})
+    client.write_fields.assert_awaited_once_with({34: 1})
     assert coordinator._async_strict_read.await_count == 2
     assert coordinator.async_set_updated_data.call_args.args[0]["station"] == 2
     assert not coordinator._regeneration_requested
@@ -64,7 +64,7 @@ async def test_regeneration_rejects_busy_vacation_and_incomplete_fresh_state(has
     coordinator._async_strict_read = AsyncMock(return_value=fresh)
     with pytest.raises(ServiceValidationError):
         await coordinator.async_start_regeneration()
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
     coordinator.async_set_updated_data.assert_called_once_with(fresh)
     assert not coordinator._regeneration_requested
 
@@ -75,11 +75,11 @@ async def test_failed_precheck_does_not_write_or_fall_back_to_cached_service(has
     coordinator._async_strict_read = AsyncMock(side_effect=coordinator_mod.YpsilonConnectionError("offline"))
     with pytest.raises(coordinator_mod.YpsilonConnectionError):
         await coordinator.async_start_regeneration()
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
     assert not coordinator._regeneration_requested
     coordinator._async_strict_read.side_effect = [{"station": 0, "vacationPattern": False}, {"station": 1}]
     await coordinator.async_start_regeneration()
-    client.write_fields.assert_called_once_with({34: 1})
+    client.write_fields.assert_awaited_once_with({34: 1})
 
 
 @pytest.mark.asyncio
@@ -106,7 +106,7 @@ async def test_overlapping_regeneration_is_rejected_without_a_second_write(hass)
     finally:
         release.set()
         await first
-    client.write_fields.assert_called_once_with({34: 1})
+    client.write_fields.assert_awaited_once_with({34: 1})
     assert calls == 2
     assert not coordinator._regeneration_requested
 
@@ -119,10 +119,10 @@ async def test_regeneration_precheck_waits_for_other_mutations(hass):
         task = asyncio.create_task(coordinator.async_start_regeneration())
         await asyncio.sleep(0)
         coordinator._async_strict_read.assert_not_awaited()
-        client.write_fields.assert_not_called()
+        client.write_fields.assert_not_awaited()
     with pytest.raises(ServiceValidationError):
         await task
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -140,7 +140,7 @@ async def test_regeneration_reconciles_once_without_resending(hass, monkeypatch,
     else:
         with pytest.raises(coordinator_mod.YpsilonWriteNotConfirmed):
             await coordinator.async_start_regeneration()
-    client.write_fields.assert_called_once_with({34: 1})
+    client.write_fields.assert_awaited_once_with({34: 1})
     assert not coordinator._regeneration_requested
 
 
@@ -149,7 +149,7 @@ async def test_explicit_phase_control_keeps_existing_policy(hass):
     coordinator, client, _ = _coordinator(hass)
     coordinator._async_strict_read = AsyncMock(return_value={"station": 3})
     await coordinator.async_write_and_verify({34: 3})
-    client.write_fields.assert_called_once_with({34: 3})
+    client.write_fields.assert_awaited_once_with({34: 3})
     coordinator._async_strict_read.assert_awaited_once_with()
 
 
@@ -201,7 +201,7 @@ async def test_manual_clock_rollover_and_strict_schedule(hass, monkeypatch, fiel
     else:
         with pytest.raises(coordinator_mod.YpsilonWriteNotConfirmed):
             await coordinator.async_write_and_verify({field: (23, 59)})
-    client.write_fields.assert_called_once_with({field: (23, 59)})
+    client.write_fields.assert_awaited_once_with({field: (23, 59)})
 
 
 @pytest.mark.asyncio
@@ -216,10 +216,10 @@ async def test_auto_clock_samples_target_after_wait_and_confirms_rollover(hass, 
     async with coordinator._mutation_lock:
         task = asyncio.create_task(coordinator._async_sync_clock_if_needed(data))
         await asyncio.sleep(0)
-        client.write_fields.assert_not_called()
+        client.write_fields.assert_not_awaited()
         monkeypatch.setattr(coordinator_mod.dt_util, "now", Mock(return_value=datetime(2026, 10, 5, 23, 59)))
     await task
-    client.write_fields.assert_called_once_with({4: (23, 59)})
+    client.write_fields.assert_awaited_once_with({4: (23, 59)})
     assert data["currentTime"] == "00:00:00"
     assert data["_clockSyncs"] == 1
     assert data["_clockDriftMinutes"] == 1
@@ -294,7 +294,7 @@ async def test_manual_clock_does_not_confirm_unchanged_next_minute(
     else:
         with pytest.raises(coordinator_mod.YpsilonWriteNotConfirmed, match="currentTime"):
             await coordinator.async_write_and_verify({4: (10, 20)})
-    client.write_fields.assert_called_once_with({4: (10, 20)})
+    client.write_fields.assert_awaited_once_with({4: (10, 20)})
     assert coordinator._async_strict_read.await_count == 2
 
 
@@ -312,7 +312,7 @@ async def test_auto_clock_does_not_count_an_unchanged_next_minute(hass, monkeypa
     ])
     data = {"currentTime": "10:00:00"}
     await coordinator._async_sync_clock_if_needed(data)
-    client.write_fields.assert_called_once_with({4: (10, 20)})
+    client.write_fields.assert_awaited_once_with({4: (10, 20)})
     assert data["_clockSyncs"] == 0
     assert coordinator._clock_syncs == 0
 
@@ -330,7 +330,7 @@ async def test_clock_precheck_failure_sends_no_write(hass, monkeypatch, automati
     else:
         with pytest.raises(coordinator_mod.YpsilonConnectionError):
             await coordinator.async_write_and_verify({4: (10, 20)})
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -361,5 +361,5 @@ async def test_clock_window_includes_the_fresh_baseline_read(hass, monkeypatch, 
     else:
         with pytest.raises(coordinator_mod.YpsilonWriteNotConfirmed):
             await coordinator.async_write_and_verify({4: (10, 20)})
-    client.write_fields.assert_called_once_with({4: (10, 20)})
+    client.write_fields.assert_awaited_once_with({4: (10, 20)})
     assert calls == 2

@@ -1,5 +1,7 @@
 # Third-party software
 
-Ypsilon depends at runtime on the `broadlink` Python package (`broadlink==0.19.0`), which is installed by Home Assistant from its own package source and is not vendored in this repository. The upstream project is `mjg59/python-broadlink` and is MIT-licensed.
+Ypsilon depends at runtime on the `broadlink` Python module, installed from the `python-broadlink` distribution (`python-broadlink==1.0.6`), which Home Assistant installs from its own package source and which is not vendored in this repository. That distribution is `DAB-LABS/python-broadlink`, a maintained fork of the original `mjg59/python-broadlink`; both are MIT-licensed. The import name remains `broadlink`.
+
+Home Assistant Core 2026.10 and later require the same distribution. Requiring the older `broadlink` distribution alongside it overwrites shared files in `site-packages/broadlink/` and breaks whichever copy loses, so the pin here deliberately matches the one core uses.
 
 Home Assistant and HACS are separate projects with their own licenses and trademarks. No Home Assistant, HACS, BroadLink, ATH, BWT or Runxin source code, firmware or application binaries are redistributed here.

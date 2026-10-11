@@ -1,10 +1,10 @@
 """Reported model-1 bytes and effective write policy, without HA or hardware."""
 import json
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
-from .helpers import load
+from .helpers import load, run
 
 models = load('models')
 codec = load('runxin.f79d')
@@ -81,42 +81,42 @@ def test_models_default_to_read_only_and_evidence_does_not_enable_writes():
 
 
 def test_raw_capture_is_opt_in_and_does_not_change_query_bytes():
-    transport = Mock()
+    transport = Mock(transact=AsyncMock(), transact_write=AsyncMock(), invalidate=AsyncMock(), close=AsyncMock())
     transport.transact.return_value = synthetic_response()
     client = client_mod.F79DClient(transport, capture_raw=True)
-    data = client.read_state()
+    data = run(client.read_state())
     assert data['_rawFieldBytes'][26] == [240, 0]
     assert data['_rawFieldBytes'][42] == [0, 15]
-    transport.transact.assert_called_once_with(codec.build_query(list(range(1, 52))))
-    plain = client_mod.F79DClient(transport).read_state()
+    transport.transact.assert_awaited_once_with(codec.build_query(list(range(1, 52))))
+    plain = run(client_mod.F79DClient(transport).read_state())
     assert '_rawFieldBytes' not in plain
 
 
 @pytest.mark.parametrize('code', [None, 1, 15, True])
 def test_composition_adapter_blocks_non_writable_or_unknown_models_before_transport(code):
     client = api.YpsilonLocalClient('192.0.2.1')
-    client._f79d = Mock()
+    client._f79d = AsyncMock()
     client._observe_model({'deviceModel': code})
     with pytest.raises(api.YpsilonConnectionError):
-        client.write_fields({43: 25})
-    client._f79d.write_fields.assert_not_called()
-    client.close()
+        run(client.write_fields({43: 25}))
+    client._f79d.write_fields.assert_not_awaited()
+    run(client.close())
 
 
 def test_model1_pending_write_restriction_survives_missing_or_changed_identity():
     client = api.YpsilonLocalClient('192.0.2.1')
-    client._f79d = Mock()
+    client._f79d = AsyncMock()
     for state in ({'deviceModel': 1}, {}, {'deviceModel': 9}):
         client._observe_model(state)
         with pytest.raises(api.YpsilonConnectionError):
-            client.write_fields({43: 25})
-    client._f79d.write_fields.assert_not_called()
-    client.close()
+            run(client.write_fields({43: 25}))
+    client._f79d.write_fields.assert_not_awaited()
+    run(client.close())
 
 
 def test_adapter_policy_snapshot_keeps_latched_permissions_without_device_io():
     client = api.YpsilonLocalClient('192.0.2.1')
-    client._f79d = Mock()
+    client._f79d = AsyncMock()
     assert client.write_policy['read_only']
     client._observe_model({'deviceModel': 9})
     assert client.write_policy['allowed_write_fields'] == [4, 6, 7, 10, 34, 43, 47]
@@ -124,24 +124,24 @@ def test_adapter_policy_snapshot_keeps_latched_permissions_without_device_io():
     client._observe_model({'deviceModel': 9})
     assert client.write_policy == {'controller_model': 9, 'read_only': False, 'allowed_write_fields': [4]}
     client._f79d.assert_not_called()
-    client._f79d.read_state.assert_not_called()
-    client._f79d.write_fields.assert_not_called()
-    client.close()
+    client._f79d.read_state.assert_not_awaited()
+    client._f79d.write_fields.assert_not_awaited()
+    run(client.close())
 
 
 @pytest.mark.parametrize('code', [9, 12, 14])
 def test_existing_controller_write_payload_and_settle_policy_are_unchanged(code, monkeypatch):
     client = api.YpsilonLocalClient('192.0.2.1')
-    client._f79d = Mock()
+    client._f79d = AsyncMock()
     client._observe_model({'deviceModel': code})
-    sleep = Mock()
-    monkeypatch.setattr(api.time, 'sleep', sleep)
-    client.write_fields({7: 200, 43: 25})
-    client._f79d.write_fields.assert_called_once_with({7: 200, 43: 25})
+    sleep = AsyncMock()
+    monkeypatch.setattr(api.asyncio, 'sleep', sleep)
+    run(client.write_fields({7: 200, 43: 25}))
+    client._f79d.write_fields.assert_awaited_once_with({7: 200, 43: 25})
     sleep.assert_called_once_with(api.WRITE_SETTLE_DELAY)
     with pytest.raises(api.YpsilonConnectionError):
-        client.write_fields({49: 1})
-    client.close()
+        run(client.write_fields({49: 1}))
+    run(client.close())
 
 
 @pytest.mark.parametrize('length', range(6))
@@ -155,11 +155,11 @@ def test_short_inner_frames_raise_a_protocol_error_instead_of_index_error(length
 
 @pytest.mark.parametrize('reading', [True, False])
 def test_response_opcode_must_match_read_or_write_request(reading):
-    transport = Mock()
+    transport = Mock(transact=AsyncMock(), transact_write=AsyncMock(), invalidate=AsyncMock(), close=AsyncMock())
     opcode = framing.WRITE_RESPONSE_CODE if reading else framing.QUERY_RESPONSE_CODE
     response = framing.build_frame(opcode, [])
     transport.transact.return_value = transport.transact_write.return_value = response
     client = client_mod.F79DClient(transport)
     with pytest.raises(load('runxin.errors').RunxinProtocolError, match='opcode'):
-        client.read_identity() if reading else client.write_fields({43: 25})
-    transport.invalidate.assert_called_once()
+        run(client.read_identity()) if reading else client.write_fields({43: 25})
+    transport.invalidate.assert_awaited_once()

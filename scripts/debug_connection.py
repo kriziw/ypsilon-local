@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Probe BroadLink discovery/authentication without changing device settings.
 
-Run this in a Python environment with broadlink==0.19.0 installed. The report
+Run this in a Python environment with python-broadlink==1.0.6 installed (which
+needs Python 3.13+). The report
 deliberately omits the host, device name, MAC, control ID, session key, packets
 and exception messages. It does not require Home Assistant or query F79D state.
 """
@@ -9,6 +10,7 @@ and exception messages. It does not require Home Assistant or query F79D state.
 from __future__ import annotations
 
 import argparse
+import asyncio
 from importlib.metadata import version
 import json
 import platform
@@ -26,10 +28,10 @@ def _error_details(err: Exception) -> dict[str, Any]:
     }
 
 
-def probe_connection(host: str, *, timeout: float = 5) -> dict[str, Any]:
+async def probe_connection(host: str, *, timeout: float = 5) -> dict[str, Any]:
     """Attempt one handshake and an optional firmware read, returning safe JSON."""
     report: dict[str, Any] = {
-        "broadlink_version": version("broadlink"),
+        "broadlink_version": version("python-broadlink"),
         "python_version": platform.python_version(),
         "timeout_seconds": timeout,
         "discovery": {"ok": False},
@@ -37,7 +39,7 @@ def probe_connection(host: str, *, timeout: float = 5) -> dict[str, Any]:
         "firmware": {"attempted": False},
     }
     try:
-        device = broadlink.hello(host, timeout=timeout)
+        device = await broadlink.hello(host, timeout=timeout)
     except Exception as err:  # noqa: BLE001 - diagnostic boundary; omit raw error text
         report["discovery"] = _error_details(err)
         return report
@@ -54,7 +56,7 @@ def probe_connection(host: str, *, timeout: float = 5) -> dict[str, Any]:
     device.timeout = timeout
     try:
         try:
-            authenticated = device.auth()
+            authenticated = await device.auth()
         except Exception as err:  # noqa: BLE001 - report library/crypto errors safely too
             report["authentication"] = {"attempted": True, **_error_details(err)}
             return report
@@ -65,21 +67,19 @@ def probe_connection(host: str, *, timeout: float = 5) -> dict[str, Any]:
             return report
         report["authentication"] = {"attempted": True, "ok": True}
         try:
-            firmware = int(device.get_fwversion())
+            firmware = int(await device.get_fwversion())
         except Exception as err:  # noqa: BLE001 - optional metadata, never needed for auth
             report["firmware"] = {"attempted": True, **_error_details(err)}
         else:
             report["firmware"] = {"attempted": True, "ok": True, "version": firmware}
         return report
     finally:
-        # 0.19.0 closes each packet socket itself; support objects with a socket
-        # too, without retaining an authenticated handle after the probe.
-        sock = getattr(device, "sock", None)
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
+        # python-broadlink 1.0 owns the UDP endpoint and exposes no `sock`;
+        # aclose() releases it without retaining an authenticated handle.
+        try:
+            await device.aclose()
+        except Exception:  # noqa: BLE001 - teardown must not mask the report
+            pass
 
 
 def _timeout(value: str) -> float:
@@ -94,7 +94,7 @@ def main() -> int:
     parser.add_argument("host", help="local device IP/hostname (omitted from the report)")
     parser.add_argument("--timeout", type=_timeout, default=5, help="per-packet timeout in seconds (default: 5)")
     args = parser.parse_args()
-    report = probe_connection(args.host, timeout=args.timeout)
+    report = asyncio.run(probe_connection(args.host, timeout=args.timeout))
     print(json.dumps(report, indent=2))
     return 0 if report["authentication"].get("ok") else 1
 

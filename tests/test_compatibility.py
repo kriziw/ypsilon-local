@@ -5,10 +5,10 @@ import json
 import time
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from broadlink.device import Device
-from .helpers import load
+from .helpers import load, run
 
 probe = load("compatibility")
 framing = load("runxin.framing")
@@ -35,7 +35,7 @@ class MockWireDevice(Device):
         self.calls = []
         self.session_key = bytes.fromhex("11112222333344445555666677778888")
 
-    def send_packet(self, packet_type, payload):
+    async def send_packet(self, packet_type, payload):
         self.calls.append((packet_type, bytes(payload)))
         self.count = ((self.count + 1) | 0x8000) & 0xFFFF
         error = 0
@@ -70,16 +70,16 @@ class MockWireDevice(Device):
 
 
 def run_device(device):
-    with patch("broadlink.hello", return_value=device), redirect_stderr(io.StringIO()):
-        return probe.probe("192.0.2.17")
+    with patch("broadlink.hello", new_callable=AsyncMock, return_value=device), redirect_stderr(io.StringIO()):
+        return run(probe.probe("192.0.2.17"))
 
 
 class ProbeValidation(unittest.TestCase):
     def test_cancellation_stops_before_discovery(self):
         cancel = threading.Event()
         cancel.set()
-        with patch("broadlink.hello") as hello:
-            report = probe.probe("192.0.2.17", cancel=cancel)
+        with patch("broadlink.hello", new_callable=AsyncMock) as hello:
+            report = run(probe.probe("192.0.2.17", cancel=cancel))
         hello.assert_not_called()
         self.assertEqual(report["summary"]["status"], "cancelled")
 
@@ -89,8 +89,8 @@ class ProbeValidation(unittest.TestCase):
             cancel.set()
             return selected, 0
         device = MockWireDevice(handler=handler)
-        with patch("broadlink.hello", return_value=device):
-            report = probe.probe("192.0.2.17", cancel=cancel)
+        with patch("broadlink.hello", new_callable=AsyncMock, return_value=device):
+            report = run(probe.probe("192.0.2.17", cancel=cancel))
         self.assertEqual(report["summary"]["fields_observed_count"], 2)
         self.assertEqual(report["scan_stop_reason"], "cancelled")
         self.assertEqual(len(device.calls), 3)  # auth, firmware, identity
@@ -120,8 +120,8 @@ class ProbeValidation(unittest.TestCase):
         values={field:(0,0) for field in range(1,53)}
         values[1]=(15,0)
         identifiers=[]
-        with patch("broadlink.hello", return_value=MockWireDevice(values)):
-            report=probe.probe("192.0.2.17", identifier_sink=identifiers)
+        with patch("broadlink.hello", new_callable=AsyncMock, return_value=MockWireDevice(values)):
+            report=run(probe.probe("192.0.2.17", identifier_sink=identifiers))
         self.assertEqual(report["controller"]["manufacturer_protocol_name"],"F138")
         self.assertFalse(report["controller"]["supported_for_normal_use"])
         self.assertEqual(identifiers,["020000000017"])

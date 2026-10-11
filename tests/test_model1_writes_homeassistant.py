@@ -41,7 +41,7 @@ async def test_manual_setting_sends_once_and_requires_fresh_readback(hass, field
     coordinator._async_strict_read = AsyncMock(side_effect=
         [reported_state(), confirmed] if field == 4 else [confirmed])
     await coordinator.async_write_and_verify({field: value})
-    client.write_fields.assert_called_once_with({field: value})
+    client.write_fields.assert_awaited_once_with({field: value})
     assert coordinator.async_set_updated_data.call_args.args[0][key] == expected
 
 
@@ -57,14 +57,14 @@ async def test_default_clock_entities_write_and_restore_without_experimental_set
     changed = {**reported_state(), "currentTime": "20:39:00"}
     coordinator._async_strict_read = AsyncMock(side_effect=[reported_state(), changed])
     await clock.async_set_value(time(20, 39))
-    client.write_fields.assert_called_once_with({4: (20, 39)})
+    client.write_fields.assert_awaited_once_with({4: (20, 39)})
     assert coordinator.async_set_updated_data.call_args.args[0]["currentTime"] == "20:39:00"
     assert clock._pending_value is None
     client.write_fields.reset_mock()
     monkeypatch.setattr(load("button").dt_util, "now", Mock(return_value=datetime(2026, 10, 10, 20, 38)))
     coordinator._async_strict_read = AsyncMock(side_effect=[changed, reported_state()])
     await sync.async_press()
-    client.write_fields.assert_called_once_with({4: (20, 38)})
+    client.write_fields.assert_awaited_once_with({4: (20, 38)})
     assert coordinator.async_set_updated_data.call_args.args[0]["currentTime"] == "20:38:00"
     assert not coordinator.automatic_clock_allowed
 
@@ -75,12 +75,12 @@ async def test_default_clock_permission_rejects_ignored_ack_and_mixed_pending_se
     coordinator._async_strict_read = AsyncMock(return_value=reported_state())
     with pytest.raises(ServiceValidationError):
         await coordinator.async_write_and_verify({4: (20, 39), 43: 26})
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
     coordinator._async_strict_read.assert_not_awaited()
     monkeypatch.setattr(coordinator_mod, "WRITE_VERIFY_TIMEOUT", 0)
     with pytest.raises(coordinator_mod.YpsilonWriteNotConfirmed):
         await coordinator.async_write_and_verify({4: (20, 39)})
-    client.write_fields.assert_called_once_with({4: (20, 39)})
+    client.write_fields.assert_awaited_once_with({4: (20, 39)})
 
 
 @pytest.mark.asyncio
@@ -92,7 +92,7 @@ async def test_poll_and_first_refresh_never_correct_model1_clock(hass, regen):
     for _ in range(2):
         result = await coordinator._async_update_data()
         assert result["_clockSyncs"] == 0
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -113,7 +113,7 @@ async def test_test_controls_preserve_reference_sensors_and_exclude_flow_cutoff(
         assert sensor.state_class is None
         assert sensor.extra_state_attributes["read_only"] is False
     assert len({e.unique_id for e in (*entities, *references)}) == len(entities) + len(references)
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -147,10 +147,10 @@ async def test_mechanical_opt_in_still_requires_service_state_and_cannot_advance
     coordinator._async_strict_read = AsyncMock(return_value={**reported_state(), "station": 2})
     with pytest.raises(ServiceValidationError):
         await coordinator.async_start_regeneration()
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
     coordinator._async_strict_read = AsyncMock(side_effect=[reported_state(), {**reported_state(), "station": 2}])
     await coordinator.async_start_regeneration()
-    client.write_fields.assert_called_once_with({34: 1})
+    client.write_fields.assert_awaited_once_with({34: 1})
 
 
 @pytest.mark.asyncio
@@ -183,13 +183,13 @@ async def test_disabling_tests_replaces_and_revokes_old_session_without_losing_c
         created.append((client, kwargs))
         return client
     monkeypatch.setattr(init_mod, "YpsilonLocalClient", create)
-    store = init_mod._get_store(hass, entry)
+    store = await init_mod._get_store(hass, entry)
     store.field52_cache["value"] = 42
     assert created[0][1] == {"model1_test_writes": True, "model1_test_regeneration": False}
     old = store.client
     hass.config_entries._entries[entry.entry_id] = entry
     hass.config_entries.async_update_entry(entry, options={"model1_test_writes": False})
-    updated = init_mod._get_store(hass, entry)
+    updated = await init_mod._get_store(hass, entry)
     assert updated is store
     assert updated.field52_cache["value"] == 42
     assert updated.client is not old
@@ -200,7 +200,7 @@ async def test_disabling_tests_replaces_and_revokes_old_session_without_losing_c
     assert not replacement.automatic_clock_allowed
     with pytest.raises(ServiceValidationError):
         await replacement.async_write_and_verify({43: 26})
-    updated.client.write_fields.assert_not_called()
+    updated.client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -229,7 +229,7 @@ async def test_enabled_test_write_cannot_confirm_an_ignored_ack(hass, monkeypatc
     monkeypatch.setattr(coordinator_mod, "WRITE_VERIFY_TIMEOUT", 0)
     with pytest.raises(coordinator_mod.YpsilonWriteNotConfirmed):
         await coordinator.async_write_and_verify({43: 26})
-    client.write_fields.assert_called_once_with({43: 26})
+    client.write_fields.assert_awaited_once_with({43: 26})
 
 
 @pytest.mark.asyncio
@@ -241,7 +241,7 @@ async def test_fresh_model1_identity_stops_automatic_clock_even_with_manual_opt_
     monkeypatch.setattr(coordinator_mod.dt_util, "now", Mock(return_value=datetime(2026, 10, 8, 12, 0)))
     await coordinator._async_sync_clock_if_needed({"deviceModel": 9, "currentTime": "00:00:00"})
     coordinator._async_strict_read.assert_awaited_once()
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -257,4 +257,4 @@ async def test_admin_services_cannot_bypass_flow_or_mechanical_test_policy(hass,
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call("ypsilon_local", name,
                 {"config_entry_id": "test", **data}, blocking=True)
-    client.write_fields.assert_not_called()
+    client.write_fields.assert_not_awaited()
