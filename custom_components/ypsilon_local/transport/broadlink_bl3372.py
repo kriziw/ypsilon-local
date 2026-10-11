@@ -34,6 +34,15 @@ from .base import RunxinTransport
 DEFAULT_DEVTYPE = 0x520F
 DEFAULT_SOCKET_TIMEOUT = 5
 DEFAULT_TRANSIENT_ERROR_CODE = -5
+# NOTE on -7 under python-broadlink 1.0: the library's own send_packet now
+# re-authenticates once and resends when the outer code is in its
+# _REAUTH_CODES (-2, -7, -4012), so a -7 is usually resolved inside the
+# library and never reaches the budget below. -1 still arrives here, and the
+# transient -5 is deliberately NOT in the library's set, so the retry policy
+# further down is unaffected. Consequence worth knowing: `reauth_count` can
+# now under-report, because library-side re-auth is invisible to it.
+# send_packet returns the raw response without calling check_error, so the
+# outer-error read at 0x22 below remains correct.
 DEFAULT_AUTH_ERROR_CODES = frozenset({-1, -7})
 DEFAULT_TRANSIENT_DELAYS = (0.4, 0.8)
 
