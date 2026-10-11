@@ -513,7 +513,7 @@ async def test_real_probe_logs_safe_authentication_context_before_entry_exists(h
 async def test_real_short_auth_response_is_connection_error_even_with_advertised_lock(hass, monkeypatch, caplog):
     transport_mod = load("transport.broadlink_bl3372")
     device = transport_mod.broadlink.Device((TEST_HOST, 80), bytes(6), 0x520F, is_locked=True)
-    device.send_packet = AsyncMock(return_value=bytes(0x38) + bytes(16))
+    device._exchange = AsyncMock(return_value=bytes(0x38) + bytes(16))
     device.decrypt = Mock(return_value=bytes(16))
     device.aclose = AsyncMock()
     monkeypatch.setattr(transport_mod.broadlink, "hello", AsyncMock(return_value=device))

@@ -35,18 +35,47 @@ class MockWireDevice(Device):
         self.calls = []
         self.session_key = bytes.fromhex("11112222333344445555666677778888")
 
-    async def send_packet(self, packet_type, payload):
-        self.calls.append((packet_type, bytes(payload)))
-        self.count = ((self.count + 1) | 0x8000) & 0xFFFF
+    async def _exchange(self, packet):
+        """Fake the wire one level below send_packet.
+
+        `python-broadlink` 1.0 authenticates with
+        `await self._exchange(self._frame(0x65, ...))`, so overriding the
+        public `send_packet` no longer intercepts authentication and the
+        real socket is used. `_exchange` is now the boundary `send_packet`
+        was in 0.19.0: framed bytes in, raw reply bytes out.
+
+        Two consequences for this fake:
+
+        - the request arrives framed and encrypted, so the command comes
+          from offset 0x26 and the payload has to be decrypted out of
+          0x38. `_frame` pads the payload to a 16-byte multiple, and
+          `guard_outbound` requires exact lengths, so the recorded call
+          is trimmed back to the unpadded request.
+        - `_frame` already advanced `self.count`, and `_exchange`
+          validates that the reply echoes the request counter. So the
+          reply copies it from the request instead of incrementing.
+        """
+        packet_type = packet[0x26]
+        counter = bytes(packet[0x28:0x2A])
+        payload = self.decrypt(bytes(packet[0x38:]))
+
+        if packet_type == 0x65:
+            recorded = bytes(payload)
+        elif payload[:1] == b"\x68" and not payload[1:].rstrip(b"\x00"):
+            recorded = b"\x68"
+        else:
+            declared = int.from_bytes(payload[:2], "little")
+            recorded = bytes(payload[:2 + declared])
+        self.calls.append((packet_type, recorded))
+
         error = 0
         if packet_type == 0x65:
             plaintext = (123456).to_bytes(4, "little") + self.session_key
             error = self.auth_error
-        elif payload == b"\x68":
+        elif recorded == b"\x68":
             plaintext = b"\x00" * 4 + (62016).to_bytes(2, "little")
         else:
-            request = bytes(payload[2:])
-            inner = framing.inner_frame(request)
+            inner = framing.inner_frame(bytes(recorded[2:]))
             if inner[3] != 0x09:
                 raise AssertionError("A write reached the fake wire")
             fields = list(inner[4:-2])
@@ -62,7 +91,7 @@ class MockWireDevice(Device):
         header[0x22:0x24] = int(error).to_bytes(2, "little", signed=True)
         header[0x24:0x26] = self.devtype.to_bytes(2, "little")
         header[0x26:0x28] = (0x03E9 if packet_type == 0x65 else 0x03EE).to_bytes(2, "little")
-        header[0x28:0x2A] = self.count.to_bytes(2, "little")
+        header[0x28:0x2A] = counter
         header[0x2A:0x30] = self.mac[::-1]
         response = header + body
         response[0x20:0x22] = (sum(response, 0xBEAF) & 0xFFFF).to_bytes(2, "little")
@@ -272,8 +301,10 @@ class ProbeValidation(unittest.TestCase):
     def test_counter_mismatch_stops_authentication_before_any_query(self):
         device = MockWireDevice()
         original = device.send_packet
-        def wrong_counter(packet_type, payload):
-            reply = original(packet_type, payload)
+        async def wrong_counter(packet_type, payload):
+            reply = await original(packet_type, payload)
+            # _exchange echoes the request counter, so desynchronise the
+            # device afterwards; the probe compares the reply against it.
             device.count += 1
             return reply
         device.send_packet = wrong_counter

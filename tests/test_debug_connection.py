@@ -123,7 +123,7 @@ def test_cli_reports_unexpected_library_error_without_traceback_or_private_text(
 
 def test_real_broadlink_short_auth_reply_is_a_sanitized_report(monkeypatch):
     device = debug_connection.broadlink.Device(("192.0.2.17", 80), bytes(6), 0x520F)
-    device.send_packet = AsyncMock(return_value=bytes(0x38) + bytes(16))
+    device._exchange = AsyncMock(return_value=bytes(0x38) + bytes(16))
     device.aclose = AsyncMock()
     device.decrypt = Mock(return_value=bytes(16))
     monkeypatch.setattr(debug_connection.broadlink, "hello", AsyncMock(return_value=device))

@@ -295,7 +295,7 @@ def test_short_real_auth_response_is_transport_failure_not_rejection(monkeypatch
     transport becomes belt-and-braces rather than load-bearing.
     """
     device = transport_mod.broadlink.Device(("192.0.2.17", 80), bytes(6), 0x520F)
-    device.send_packet = AsyncMock(return_value=bytes(0x38) + bytes(16))
+    device._exchange = AsyncMock(return_value=bytes(0x38) + bytes(16))
     device.decrypt = Mock(return_value=bytes(16))
     device.aclose = AsyncMock()
     monkeypatch.setattr(transport_mod.broadlink, "hello", AsyncMock(return_value=device))
