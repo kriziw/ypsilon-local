@@ -1,0 +1,4 @@
+# Development-only native HA environment; no new integration dependencies.
+-r requirements-test-offline.txt
+homeassistant==2026.9.4
+pytest-asyncio==1.4.0

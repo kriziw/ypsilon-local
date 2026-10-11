@@ -2,7 +2,16 @@
 
 # Afegir un altre perfil de dispositiu Runxin
 
-No comencis copiant la taula de camps F79D i canviant-li el nom. Les aplicacions antigues WaterDevice contenen comportament dependent del model, de manera que un segon controlador Runxin s'ha de tractar com un perfil independent fins que les captures demostrin què és realment compartit.
+No copiïs la taula F79D canviant-li el nom. Tracta un altre controlador com a no verificat fins que les lectures demostrin què és compartit. Un controlador compatible pot reutilitzar el perfil de protocol amb política pròpia; compartir trames no demostra semàntica física idèntica.
+
+## Política de controlador i perfil de protocol
+
+Si el mapa compartit està demostrat, reutilitza el còdec i afegeix una entrada `ControllerModel` amb evidència, permisos explícits, incertesa de conversions i entitats aplicables. `allowed_write_fields` és buit per defecte. Una Alpha de lectura pot mostrar referències provisionals, però ha de bloquejar rellotge, serveis i escriptures directes i desactivar les estadístiques provisionals.
+
+Les diferències demostrades necessiten overrides i fixtures per model, sense modificar els valors per defecte del G6/Midnight. Un mapa diferent requereix un perfil i selector explícits; `protocol_profile` encara no és una fàbrica genèrica. Cal provar absències, enums desconeguts, intents de saltar permisos, reinicis i identitats existents.
+
+Consulta la [política de suport](model-support.md) i el [model 1](model-1-alpha.ca.md).
+
 
 ## Flux de treball recomanat
 
@@ -34,7 +43,7 @@ No amaguis la incertesa. `inferred` és preferible a presentar una hipòtesi com
 
 ## El suport a Home Assistant és una decisió separada
 
-Un perfil reutilitzable pot existir al repositori abans que la integració Ypsilon el suporti. Afegir-lo al descobriment automàtic/config flow requereix treball addicional: nom del model, identitat del dispositiu, aplicabilitat d'entitats, política d'escriptures segures, traduccions, diagnòstics i proves amb maquinari real.
+Un perfil reutilitzable pot existir al repositori abans que la integració Runxin Local el suporti. Afegir-lo al descobriment automàtic/config flow requereix treball addicional: nom del model, identitat del dispositiu, aplicabilitat d'entitats, política d'escriptures segures, traduccions, diagnòstics i proves amb maquinari real.
 
 Aquesta separació permet que la feina d'enginyeria inversa sigui útil sense fingir que un model nou està preparat per a producció.
 

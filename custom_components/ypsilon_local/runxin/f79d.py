@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .errors import F79DProtocolError
-from .fields import F79D_FIELDS_BY_ID, F79D_FIELD_SPECS, FieldCodec
+from .fields import F79D_FIELDS_BY_ID, F79D_FIELD_SPECS, F79D_READ_CODEC_OVERRIDES, FieldCodec
 from .framing import (
     QUERY_CODE,
     WRITE_CODE,
@@ -143,14 +143,22 @@ def _decode_volume_pair(
     return (next_high + next_low * 100 + base_high * 10_000) / 100
 
 
-def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
+def decode_tlvs(
+    tlvs: dict[int, tuple[int, int]], *, device_model: int | None = None
+) -> dict[str, Any]:
     """Decode raw F79D TLV byte pairs into named semantic controller values."""
     decoded: dict[str, Any] = {}
     unit_code = tlvs.get(8, (None, None))[0]
+    # A received identity takes precedence over context from a previous read.
+    model_code = tlvs.get(1, (device_model, None))[0]
     for field, (low, high) in tlvs.items():
+        if field == 26:
+            # Preserve original bytes regardless of the model's read codec.
+            decoded["_raw_resinVolumeBytes"] = (low, high)
         spec = F79D_FIELDS_BY_ID.get(field)
         name = spec.name if spec is not None else f"field_{field}"
         codec = spec.read_codec if spec is not None else FieldCodec.U8
+        codec = F79D_READ_CODEC_OVERRIDES.get((model_code, field), codec)
 
         if codec is FieldCodec.CONTINUATION:
             continue
@@ -180,9 +188,9 @@ def decode_tlvs(tlvs: dict[int, tuple[int, int]]) -> dict[str, Any]:
     return decoded
 
 
-def decode_frame(frame: bytes) -> dict[str, Any]:
+def decode_frame(frame: bytes, *, device_model: int | None = None) -> dict[str, Any]:
     """Validate/extract a complete F79D frame and decode its semantic values."""
-    return decode_tlvs(extract_tlvs(frame))
+    return decode_tlvs(extract_tlvs(frame), device_model=device_model)
 
 
 _inner_frame = inner_frame

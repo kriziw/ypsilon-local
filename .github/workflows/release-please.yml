@@ -32,14 +32,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
       # Everything below runs only on the push that merged the release PR.
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: ${{ steps.release.outputs.release_created == 'true' }}
         with:
           # Validate the exact tagged source, not main, so what was released
@@ -47,14 +47,14 @@ jobs:
           ref: ${{ steps.release.outputs.tag_name }}
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         if: ${{ steps.release.outputs.release_created == 'true' }}
         with:
           python-version: "3.13"
 
       - name: Install release-test dependencies
         if: ${{ steps.release.outputs.release_created == 'true' }}
-        run: python -m pip install --disable-pip-version-check pytest python-broadlink==1.0.6
+        run: python -m pip install --disable-pip-version-check -r requirements-test-offline.txt
 
       - name: Validate tagged release source
         if: ${{ steps.release.outputs.release_created == 'true' }}

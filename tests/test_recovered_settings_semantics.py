@@ -68,6 +68,21 @@ def test_recovered_enum_fields_are_ha_enums() -> None:
         assert "entity_registry_enabled_default=False" in block
 
 
+def test_confirmed_language_pairs_do_not_replace_other_model_reference_labels() -> None:
+    s = _load("semantics")
+    assert s.device_language_keys(1)[7] == "dutch"
+    assert s.device_language_keys(1)[3] == "french"
+    assert s.device_language_keys(9)[3] == "spanish"
+    assert s.device_language_keys(9)[7] == "polish"
+    for model in (12, 14, None, 99, True):
+        assert s.device_language_keys(model) == s.DEVICE_LANGUAGE_KEYS
+    # Callers cannot contaminate the reference table or subsequent entities.
+    keys = s.device_language_keys(1)
+    keys[3] = "dutch"
+    assert s.device_language_keys(1)[3] == "french"
+    assert s.DEVICE_LANGUAGE_KEYS[7] == "polish"
+
+
 def test_numeric_recovered_fields_stay_numeric() -> None:
     for key, field in {
         "washing_increase_number": 13,
@@ -102,6 +117,7 @@ def test_all_enum_states_are_translated_in_all_languages() -> None:
         "language_code": {
             "chinese", "english", "spanish", "french",
             "russian", "italian", "german", "polish",
+            "dutch",
         },
         "device_time_scheme": {"12_hour", "24_hour"},
         "output_relay_mode": {"b_01", "b_02"},

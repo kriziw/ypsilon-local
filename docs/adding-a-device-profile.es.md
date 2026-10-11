@@ -2,7 +2,16 @@
 
 # Añadir otro perfil de dispositivo Runxin
 
-No empieces copiando la tabla de campos F79D y cambiándole el nombre. Las aplicaciones antiguas WaterDevice contienen comportamiento dependiente del modelo, por lo que un segundo controlador Runxin debe tratarse como un perfil independiente hasta que las capturas demuestren qué partes son realmente compartidas.
+No copies la tabla F79D cambiándole el nombre. Trata otro controlador como no verificado hasta que las lecturas demuestren qué se comparte. Un controlador compatible puede reutilizar el perfil de protocolo con política propia; compartir tramas no demuestra semántica física idéntica.
+
+## Política de controlador y perfil de protocolo
+
+Si el mapa compartido está demostrado, reutiliza el códec y añade un `ControllerModel` con evidencia, permisos explícitos, incertidumbre y entidades aplicables. `allowed_write_fields` está vacío por defecto. Una Alpha de lectura puede mostrar referencias provisionales, pero debe bloquear reloj, servicios y escrituras directas y desactivar estadísticas provisionales.
+
+Las diferencias demostradas necesitan overrides/fixtures por modelo sin alterar G6/Midnight. Otro mapa requiere perfil/selector explícitos; `protocol_profile` todavía no es una fábrica genérica. Prueba campos ausentes, códigos desconocidos, intentos de eludir permisos, reinicios e identidades existentes.
+
+Consulta la [política de soporte](model-support.md) y el [modelo 1](model-1-alpha.es.md).
+
 
 ## Flujo de trabajo recomendado
 
@@ -34,7 +43,7 @@ No ocultes la incertidumbre. `inferred` es preferible a presentar una hipótesis
 
 ## El soporte en Home Assistant es una decisión separada
 
-Un perfil reutilizable puede existir en el repositorio antes de que la integración Ypsilon lo soporte. Añadirlo al descubrimiento automático/config flow requiere trabajo adicional: nombre del modelo, identidad del dispositivo, aplicabilidad de entidades, política de escrituras seguras, traducciones, diagnósticos y pruebas con hardware real.
+Un perfil reutilizable puede existir en el repositorio antes de que la integración Runxin Local lo soporte. Añadirlo al descubrimiento automático/config flow requiere trabajo adicional: nombre del modelo, identidad del dispositivo, aplicabilidad de entidades, política de escrituras seguras, traducciones, diagnósticos y pruebas con hardware real.
 
 Esta separación permite que el trabajo de ingeniería inversa sea útil sin fingir que un modelo nuevo está listo para producción.
 

@@ -74,7 +74,7 @@ SALT_HW_CLOUD_WRITE = (
 F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
     FieldSpec(1, "deviceModel", evidence=OBSERVED),
     FieldSpec(2, "language", write_codec=FieldCodec.U8, evidence=OBSERVED,
-              notes="WaterDevice enum 0..7: Chinese, English, Spanish, French, Russian, Italian, German, Polish."),
+              notes="Reference WaterDevice enum 0..7; confirmed language-label overrides live in semantics.py (model 1/code 7 Dutch; model 9/code 3 Spanish)."),
     FieldSpec(3, "deviceTimeScheme", evidence=OBSERVED,
               notes="WaterDevice enum: 0=12-hour, 1=24-hour."),
     FieldSpec(4, "currentTime", FieldCodec.TIME_HM, FieldCodec.TIME_HM, evidence=HW_WRITE),
@@ -114,7 +114,8 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
               notes="WaterDevice enum: 0=b-01, 1=b-02."),
     FieldSpec(25, "regenerationAlarmNumber", FieldCodec.U16_LE, FieldCodec.U16_LE, evidence=OBSERVED,
               notes="Regeneration-count reminder threshold; WaterDevice range 5..1200. Observed G6 value: 700."),
-    FieldSpec(26, "resinVolume", unit_hint="L", evidence=OBSERVED),
+    FieldSpec(26, "resinVolume", unit_hint="L", evidence=OBSERVED,
+              notes="Reference G6 uses U8 whole litres. Model 12 retains U8 tenths (FA 00 = 25 L). Model 14 overrides the read codec to U16 LE tenths: issue #22 pairs 2C 01 with a controller photo of 30.0 L. Both bytes are preserved."),
     FieldSpec(27, "clockChipFault", FieldCodec.BOOL),
     FieldSpec(28, "multiplePositionSignalFault", FieldCodec.BOOL),
     FieldSpec(29, "noPositionSignalFault", FieldCodec.BOOL),
@@ -153,6 +154,11 @@ F79D_FIELD_SPECS: tuple[FieldSpec, ...] = (
 
 F79D_FIELDS_BY_ID = {spec.id: spec for spec in F79D_FIELD_SPECS}
 F79D_FIELDS_BY_NAME = {spec.name: spec for spec in F79D_FIELD_SPECS}
+
+# Read-only, model-specific differences supported by hardware evidence.
+# Issue #22: F136/model 14, BL3372 0x520F firmware 62016, 2C 01 = 30.0 L.
+# Keep the reference G6 and model-12 catalogue unchanged.
+F79D_READ_CODEC_OVERRIDES = {(14, 26): FieldCodec.U16_LE}
 
 if len(F79D_FIELDS_BY_ID) != len(F79D_FIELD_SPECS):
     raise RuntimeError("duplicate F79D field id")

@@ -1,21 +1,56 @@
 {
-  "title": "Ypsilon",
+  "title": "Runxin Local",
   "config": {
     "step": {
-      "user": {"title": "Connecta el descalcificador", "description": "Introdueix l'adreça IP local del BL3372.", "data": {"host": "Adreça IP"}},
-      "discovery_confirm": {"title": "Ypsilon detectat", "description": "S'ha detectat un dispositiu a la xarxa ({host}). Vols configurar-lo?"},
-      "reconfigure": {"title": "Canvia l'adreça IP", "data": {"host": "Amfitrió"}}
+      "readonly_alpha": {"title": "Alpha amb controls manuals del rellotge validats", "description": "Aquest controlador té lectures experimentals. El rellotge del dispositiu i el botó de sincronització manual estan validats i disponibles sense activar els ajustos experimentals. Per defecte es llegeix cada minut i la integració no corregeix automàticament el rellotge d’aquest model. Els altres ajustos i les proves de regeneració requereixen opcions explícites. La resina i la capacitat per cicle no tenen unitats confirmades; les lectures numèriques provisionals no generen estadístiques de llarg termini. Descarrega els diagnòstics des del menú de l’entrada per compartir els bytes rebuts."},
+      "user": {"title": "Connecta un descalcificador Runxin", "description": "Introdueix l'adreça IP local del BL3372.", "data": {"host": "Adreça IP", "diagnostic_only": "Preparar només un informe de diagnòstic de lectura"}, "data_description": {"diagnostic_only": "Activa-ho per recollir un informe puntual sense afegir controls. Útil per a models no admesos o problemes de connexió."}},
+      "discovery_confirm": {"title": "Dispositiu compatible amb Runxin descobert", "description": "S'ha detectat un dispositiu a la xarxa ({host}). Vols configurar-lo?"},
+      "reconfigure": {"title": "Canvia l'adreça IP", "data": {"host": "Amfitrió"}},
+      "diagnostic_offer": {"title": "Prepara un informe de compatibilitat", "description": "Controlador indicat: {controller}. Pots recollir un informe local de lectura encara que l’alta no hagi funcionat. L’exploració dura aproximadament tres minuts com a màxim, fa descoberta/autenticació habitual i consultes de camps, i no canvia paràmetres ni inicia regeneracions. Tanca les apps del fabricant durant l’exploració. No es puja res automàticament.", "data": {"generate_report": "Preparar l’informe de lectura"}},
+      "diagnostic_scan": {"title": "Recollint un informe de lectura", "description": "S’està llegint el dispositiu una vegada. Pot trigar aproximadament tres minuts. Si cancel·les, no es faran més peticions després que acabi la petició en curs."},
+      "diagnostic_ready": {"title": "Informe preparat", "description": "Camps observats: {fields} de 52. Els informes parcials són útils. Confirma per desar una entrada només de diagnòstic; després descarrega els diagnòstics des del seu menú a Configuració → Dispositius i serveis. L’entrada no té controls ni consultes periòdiques i no repeteix l’exploració després d’un reinici. [Obre una issue amb el resum preparat]({issue_url}), adjunta el JSON descarregat i afegeix marca/model i algunes lectures de l’app o del controlador amb les unitats. Elimina aquesta entrada de diagnòstic abans d’afegir el dispositiu normalment quan tingui suport."}
     },
-    "error": {"cannot_connect": "No s'ha pogut connectar amb el dispositiu.", "unsupported_device": "Model de controlador no compatible."},
-    "abort": {"already_configured": "Aquest dispositiu ja està configurat.", "wrong_device": "Aquesta IP correspon a un altre dispositiu.", "reconfigure_successful": "Adreça actualitzada.", "unsupported_device": "Aquest model de controlador no és compatible (compatibles: Ypsilon G6 model 9, Euro-Clear Midnight model 12).", "cannot_connect": "No s'ha pogut connectar amb el dispositiu."}
+    "error": {
+      "invalid_auth": "El dispositiu ha respost però ha rebutjat l'autenticació local. Consulta la guia de resolució de problemes de connexió i els logs de depuració.",
+      "device_locked": "El dispositiu ha rebutjat l'autenticació local i ha anunciat un bloqueig del control local. Comprova si l'app del fabricant ofereix alguna opció de bloqueig o control local; consulta la guia abans de restablir-lo.",
+      "cannot_connect": "No s'ha pogut connectar amb el dispositiu.",
+      "unsupported_device": "Model de controlador no compatible."
+    },
+    "abort": {
+      "invalid_auth": "El dispositiu ha respost però ha rebutjat l'autenticació local. Consulta la guia de resolució de problemes de connexió i els logs de depuració.",
+      "device_locked": "El dispositiu ha rebutjat l'autenticació local i ha anunciat un bloqueig del control local. Comprova si l'app del fabricant ofereix alguna opció de bloqueig o control local; consulta la guia abans de restablir-lo.",
+      "already_configured": "Aquest dispositiu ja està configurat.",
+      "wrong_device": "Aquesta IP correspon a un altre dispositiu.",
+      "reconfigure_successful": "Adreça actualitzada.",
+      "unsupported_device": "Aquest model de controlador no està admès. Pots recollir un informe de compatibilitat de només lectura.",
+      "cannot_connect": "No s'ha pogut connectar amb el dispositiu.",
+      "diagnostic_in_progress": "Ja s’està recollint un informe de diagnòstic per a aquesta adreça. Espera que acabi.",
+      "diagnostic_declined": "No s’ha demanat l’informe de diagnòstic.",
+      "diagnostic_failed": "No s’ha pogut preparar l’informe. Torna-ho a intentar més endavant o consulta les instruccions del diagnòstic independent.",
+      "diagnostic_only": "Aquesta entrada només conserva un informe de diagnòstic desat. Descarrega’l des del seu menú. Elimina-la abans d’afegir el dispositiu normalment o recollir un informe nou."
+    },
+    "progress": {
+      "collecting_report": "S’està llegint el dispositiu una vegada. Pot trigar aproximadament tres minuts. Si cancel·les, no es faran més peticions després que acabi la petició en curs."
+    }
   },
-  "options": {"step": {"init": {
-    "title": "Opcions de Ypsilon",
-    "data": {"scan_interval": "Interval de consulta (s)", "adaptive_polling": "Sondeig adaptatiu", "active_scan_interval": "Interval quan hi ha activitat (s)", "auto_sync_clock": "Sincronitza el rellotge automàticament", "clock_tolerance_minutes": "Tolerància del rellotge (min)"},
-    "data_description": {"adaptive_polling": "Consulta més sovint mentre passa aigua o la vàlvula està en una transició mecànica de regeneració o de vacances detectada en lectura.", "active_scan_interval": "Només s'aplica amb el sondeig adaptatiu actiu.", "auto_sync_clock": "Corregeix l'hora de la vàlvula quan es desvia. Cobreix també el canvi d'hora estacional, que el descalcificador no aplica per si mateix.", "clock_tolerance_minutes": "Desviació màxima que es tolera abans de corregir."}
-  }}},
+  "options": {
+    "step": {
+      "init": {"title": "Opcions de Runxin Local", "data": {"scan_interval": "Interval de consulta (s)", "adaptive_polling": "Sondeig adaptatiu", "active_scan_interval": "Interval quan hi ha activitat (s)", "auto_sync_clock": "Sincronitza el rellotge automàticament", "clock_tolerance_minutes": "Tolerància del rellotge (min)", "model1_test_writes": "Activa els ajustos experimentals del model 1", "model1_test_regeneration": "Activa l’inici experimental de regeneració del model 1"}, "data_description": {"adaptive_polling": "Consulta més sovint mentre passa aigua o la vàlvula està en una transició mecànica de regeneració o de vacances detectada en lectura.", "active_scan_interval": "Només s'aplica amb el sondeig adaptatiu actiu.", "auto_sync_clock": "Corregeix l'hora de la vàlvula quan es desvia. Cobreix també el canvi d'hora estacional, que el descalcificador no aplica per si mateix.", "clock_tolerance_minutes": "Desviació màxima que es tolera abans de corregir.", "model1_test_writes": "Permet provar el temps de cabal continu, l’horari de regeneració, la sal afegida i la duresa. El rellotge i la sincronització manual ja estan disponibles sense aquesta opció. Aquestes escriptures addicionals no estan verificades físicament al model 1. Anota el valor inicial, contrasta’l amb l’app/controlador i restaura’l. La correcció automàtica del rellotge i el tall per cabal continuen bloquejats.", "model1_test_regeneration": "També requereix activar els ajustos experimentals. Afegeix el botó d’inici per a una prova física de regeneració prevista. Mou la vàlvula i consumeix aigua/sal. L’avanç de fases i les escriptures de vacances continuen bloquejats."}}
+    },
+    "abort": {
+      "diagnostic_only": "Aquesta entrada només conserva un informe de diagnòstic desat. Descarrega’l des del seu menú. Elimina-la abans d’afegir el dispositiu normalment o recollir un informe nou."
+    }
+  },
   "entity": {
     "sensor": {
+      "reference_clock": {"name": "Rellotge del dispositiu · Lectura"},
+      "reference_schedule": {"name": "Horari de regeneració · Referència"},
+      "reference_salt": {"name": "Sal afegida · Referència"},
+      "reference_hardness": {"name": "Duresa · Referència"},
+      "reference_continuous_flow": {"name": "Temps de cabal continu · Referència"},
+      "reference_flow_cutoff": {"name": "Tall per cabal · Referència bruta"},
+      "reference_close_reason": {"name": "Motiu de tancament · Referència bruta"},
+
       "flow_rate": {"name": "Cabal"},
       "daily_water": {"name": "Consum diari"},
       "residual_water": {"name": "Capacitat de tractament restant"},
@@ -39,7 +74,7 @@
       "resin_volume": {"name": "Volum de resina"},
       "filter_work_days": {"name": "Interval de manteniment del material filtrant"},
       "device_model": {"name": "Model"},
-      "language_code": {"name": "Idioma del dispositiu", "state": {"chinese": "Xinès", "english": "Anglès", "spanish": "Espanyol", "french": "Francès", "russian": "Rus", "italian": "Italià", "german": "Alemany", "polish": "Polonès"}},
+      "language_code": {"name": "Idioma del dispositiu", "state": {"chinese": "Xinès", "english": "Anglès", "spanish": "Espanyol", "french": "Francès", "russian": "Rus", "italian": "Italià", "german": "Alemany", "polish": "Polonès", "dutch": "Neerlandès"}},
       "device_time_scheme": {"name": "Format horari", "state": {"12_hour": "12 hores", "24_hour": "24 hores"}},
       "washing_increase_number": {"name": "Freqüència de rentat"},
       "backwash_interval_number": {"name": "Interval entre contrarentats"},
@@ -74,25 +109,76 @@
       "filter_reminder": {"name": "Recordatori del material filtrant"},
       "communication_problem": {"name": "Problema de comunicació local"}
     },
-    "number": {"salt_addition": {"name": "Quantitat de sal afegida"}, "raw_water_hardness": {"name": "Duresa de l'aigua d'entrada"}, "continuous_water_time": {"name": "Límit flux d'aigua continu"}, "flow_rate_off": {"name": "Tancament per cabal màxim"}},
-    "time": {"regenerating_trigger_time": {"name": "Hora de regeneració"}, "device_clock": {"name": "Hora del dispositiu"}},
-    "button": {"force_regeneration": {"name": "Forçar regeneració"}, "sync_clock": {"name": "Sincronitza el rellotge"}}
+    "number": {
+      "salt_addition": {"name": "Quantitat de sal afegida"},
+      "raw_water_hardness": {"name": "Duresa de l'aigua d'entrada"},
+      "continuous_water_time": {"name": "Límit flux d'aigua continu"},
+      "flow_rate_off": {"name": "Tancament per cabal màxim"}
+    },
+    "time": {
+      "regenerating_trigger_time": {"name": "Hora de regeneració"},
+      "device_clock": {"name": "Hora del dispositiu"}
+    },
+    "button": {
+      "force_regeneration": {"name": "Forçar regeneració"},
+      "sync_clock": {"name": "Sincronitza el rellotge"}
+    }
   },
   "services": {
-    "write_fields": {"name": "Escriu camps", "description": "Escriu camps de configuració F79D reversibles en una sola trama 0x19. Els camps mecànics o de màquina d'estats només s'exposen quan la seva acció local ha estat verificada.", "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "fields": {"name": "Camps", "description": "Diccionari id_camp: valor cru. Per a camps d'hora, [hora, minut]. El camp 7 usa centèsimes en cru."}}},
-    "advance_phase": {"name": "Avança la fase", "description": "Escriu el mode del sistema per moure la màquina d'estats de regeneració (0-4). Operació mecànica: utilitza-ho amb cura.", "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "phase": {"name": "Fase", "description": "0 servei, 1-4 etapes de regeneració."}}}
+    "write_fields": {
+      "name": "Escriu camps",
+      "description": "Escriu camps de configuració F79D reversibles en una sola trama 0x19. Els camps mecànics o de màquina d'estats només s'exposen quan la seva acció local ha estat verificada.",
+      "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "fields": {"name": "Camps", "description": "Diccionari id_camp: valor cru. Per a camps d'hora, [hora, minut]. El camp 7 usa centèsimes en cru."}}
+    },
+    "advance_phase": {
+      "name": "Avança la fase",
+      "description": "Escriu el mode del sistema per moure la màquina d'estats de regeneració (0-4). Operació mecànica: utilitza-ho amb cura.",
+      "fields": {"config_entry_id": {"name": "Dispositiu", "description": "Entrada de configuració."}, "phase": {"name": "Fase", "description": "0 servei, 1-4 etapes de regeneració."}}
+    }
   },
   "exceptions": {
-    "write_failed": {"message": "No s'ha pogut escriure {name} al descalcificador: {error}"},
-    "below_minimum": {"message": "{value} és per sota del mínim permès ({minimum})."},
-    "above_maximum": {"message": "{value} supera el màxim permès ({maximum})."},
-    "unsupported_flow_unit": {"message": "El control de tancament per cabal només està habilitat per al mode verificat en metres cúbics."},
-    "service_entry_not_found": {"message": "No existeix cap entrada de configuració de Ypsilon amb id {entry_id}."},
-    "service_entry_not_loaded": {"message": "L'entrada de configuració de Ypsilon seleccionada no està carregada."},
-    "service_fields_not_writable": {"message": "Aquests camps no estan permesos per la política segura d'escriptura: {fields}."},
-    "service_field_invalid_value": {"message": "El camp {field} té un valor no vàlid: {value}."},
-    "service_field_out_of_range": {"message": "El valor {value} del camp {field} queda fora del rang permès {minimum}–{maximum}."},
-    "service_write_failed": {"message": "No s'ha pogut confirmar l'escriptura F79D: {error}"},
-    "service_phase_failed": {"message": "No s'ha pogut confirmar el canvi de fase de regeneració: {error}"}
+    "model_write_not_allowed": {"message": "Aquest controlador no permet l’ajust o l’acció sol·licitats. Comprova els controls admesos i les opcions experimentals necessàries."},
+    "regeneration_busy": {
+      "message": "Ja s’està processant una petició de regeneració. Espera que acabi."
+    },
+    "regeneration_not_ready": {
+      "message": "La regeneració només pot començar quan una lectura nova confirma que la vàlvula està en servei i el mode vacances està desactivat."
+    },
+    "write_failed": {
+      "message": "No s'ha pogut escriure {name} al descalcificador: {error}"
+    },
+    "below_minimum": {
+      "message": "{value} és per sota del mínim permès ({minimum})."
+    },
+    "above_maximum": {
+      "message": "{value} supera el màxim permès ({maximum})."
+    },
+    "unsupported_flow_unit": {
+      "message": "El control de tancament per cabal només està habilitat per al mode verificat en metres cúbics."
+    },
+    "service_entry_not_found": {
+      "message": "No existeix cap entrada de configuració de Runxin Local amb id {entry_id}."
+    },
+    "service_entry_not_loaded": {
+      "message": "L'entrada de configuració de Runxin Local seleccionada no està carregada."
+    },
+    "service_fields_not_writable": {
+      "message": "Aquests camps no estan permesos per la política segura d'escriptura: {fields}."
+    },
+    "service_field_invalid_value": {
+      "message": "El camp {field} té un valor no vàlid: {value}."
+    },
+    "service_field_out_of_range": {
+      "message": "El valor {value} del camp {field} queda fora del rang permès {minimum}–{maximum}."
+    },
+    "service_write_failed": {
+      "message": "No s'ha pogut confirmar l'escriptura F79D: {error}"
+    },
+    "service_phase_failed": {
+      "message": "No s'ha pogut confirmar el canvi de fase de regeneració: {error}"
+    },
+    "diagnostic_read_only": {
+      "message": "Les entrades de diagnòstic no poden enviar ordres de configuració o regeneració."
+    }
   }
 }

@@ -1,6 +1,6 @@
 {
   "domain": "ypsilon_local",
-  "name": "Ypsilon",
+  "name": "Runxin Local",
   "codeowners": [
     "@Danirv"
   ],
@@ -13,11 +13,11 @@
     {"macaddress": "B4430D*"},
     {"macaddress": "C8F742*"}
   ],
-  "documentation": "https://github.com/Danirv/ypsilon-local",
+  "documentation": "https://github.com/Danirv/runxin-local",
   "integration_type": "device",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/Danirv/ypsilon-local/issues",
+  "issue_tracker": "https://github.com/Danirv/runxin-local/issues",
   "loggers": ["broadlink"],
   "requirements": ["python-broadlink==1.0.6"],
-  "version": "2.8.0"
+  "version": "2.10.0"
 }

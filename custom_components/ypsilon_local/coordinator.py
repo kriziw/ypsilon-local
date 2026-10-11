@@ -10,6 +10,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -26,6 +27,9 @@ from .const import (
     CONF_ADAPTIVE_POLLING,
     CONF_AUTO_SYNC_CLOCK,
     CONF_CLOCK_TOLERANCE,
+    CONF_CONTROLLER_MODEL,
+    CONF_MODEL1_TEST_WRITES,
+    CONF_MODEL1_TEST_REGENERATION,
     CONF_SCAN_INTERVAL,
     DEFAULT_ACTIVE_SCAN_INTERVAL,
     DEFAULT_ADAPTIVE_POLLING,
@@ -43,6 +47,7 @@ from .const import (
 )
 from .protocol import BOOL_FIELDS, CLOCK_FIELDS, FIELD_NAMES
 from .runxin.semantics import vacation_status
+from .models import allowed_write_fields, controller_model
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,8 +63,15 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         field52_cache: dict[str, Any],
     ) -> None:
         self.client = client
+        self._configured_model = entry.data.get(CONF_CONTROLLER_MODEL)
+        self._read_only_latched = False
         self._field52_cache = field52_cache
         options = entry.options
+        self.model1_test_writes = options.get(CONF_MODEL1_TEST_WRITES) is True
+        self.model1_test_regeneration = (
+            self.model1_test_writes and options.get(CONF_MODEL1_TEST_REGENERATION) is True
+        )
+        self._model1_seen = self._configured_model == 1
         self.scan_interval = int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
         self.active_scan_interval = int(
             options.get(CONF_ACTIVE_SCAN_INTERVAL, DEFAULT_ACTIVE_SCAN_INTERVAL)
@@ -83,6 +95,7 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_clock_sync_attempt: float | None = None
         self._clock_syncs = 0
         self._mutation_lock = asyncio.Lock()
+        self._regeneration_requested = False
 
         super().__init__(
             hass,
@@ -92,6 +105,66 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=self.scan_interval),
             always_update=True,
         )
+
+    @property
+    def read_only(self) -> bool:
+        for code in (self._configured_model, (self.data or {}).get("deviceModel")):
+            self._model1_seen |= code == 1
+            model = controller_model(code)
+            if model is not None and not self._policy_fields(code):
+                self._read_only_latched = True
+        return self._read_only_latched
+
+    def _policy_fields(self, code: object) -> frozenset[int]:
+        fields = allowed_write_fields(
+            code, model1_test_writes=self.model1_test_writes,
+            model1_test_regeneration=self.model1_test_regeneration,
+        )
+        if self._model1_seen:
+            fields &= allowed_write_fields(
+                1, model1_test_writes=self.model1_test_writes,
+                model1_test_regeneration=self.model1_test_regeneration,
+            )
+        configured = controller_model(self._configured_model)
+        if configured is not None:
+            fields &= allowed_write_fields(
+                configured.code, model1_test_writes=self.model1_test_writes,
+                model1_test_regeneration=self.model1_test_regeneration,
+            )
+        return fields
+
+    @property
+    def allowed_write_fields(self) -> frozenset[int]:
+        if self.read_only:
+            return frozenset()
+        return self._policy_fields((self.data or {}).get("deviceModel"))
+
+    @property
+    def automatic_clock_allowed(self) -> bool:
+        fields = self.allowed_write_fields
+        return not self._model1_seen and FIELD_CURRENT_TIME in fields
+
+    def _observe_write_policy(self, data: dict[str, Any]) -> None:
+        code = data.get("deviceModel")
+        self._model1_seen |= code == 1
+        if controller_model(code) is not None and not self._policy_fields(code):
+            self._read_only_latched = True
+
+    def _require_write_permission(
+        self, fields: dict[int, Any], observed: dict[str, Any] | None = None,
+        *, regeneration_start: bool = False,
+    ) -> None:
+        code = (observed or {}).get("deviceModel", (self.data or {}).get("deviceModel"))
+        self._observe_write_policy({"deviceModel": code})
+        if (
+            self.read_only or controller_model(code) is None
+            or not set(fields).issubset(self._policy_fields(code))
+            or (self._model1_seen and FIELD_SYSTEM_MODE in fields
+                and (not regeneration_start or fields != {FIELD_SYSTEM_MODE: 1}))
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="model_write_not_allowed"
+            )
 
     @staticmethod
     def _decorate_semantics(data: dict[str, Any]) -> None:
@@ -175,7 +248,12 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         drift = self._clock_drift(data.get("currentTime"))
         data["_clockDriftMinutes"] = drift
         data["_clockSyncs"] = self._clock_syncs
-        if drift is None or not self.auto_sync_clock or abs(drift) <= self.clock_tolerance:
+        code = data.get("deviceModel", (self.data or {}).get("deviceModel"))
+        self._observe_write_policy({"deviceModel": code})
+        if (
+            self.read_only or self._model1_seen or FIELD_CURRENT_TIME not in self._policy_fields(code)
+            or drift is None or not self.auto_sync_clock or abs(drift) <= self.clock_tolerance
+        ):
             return
 
         now = time.monotonic()
@@ -186,17 +264,23 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         self._last_clock_sync_attempt = now
 
-        local = dt_util.now()
-        expected_time = f"{local.hour:02d}:{local.minute:02d}:00"
-        _LOGGER.info(
-            "Valve clock is %+d min out (device %s, local %02d:%02d); correcting",
-            drift,
-            data.get("currentTime"),
-            local.hour,
-            local.minute,
-        )
-
         async with self._mutation_lock:
+            clock_check_started = time.monotonic()
+            try:
+                before_write = await self._async_strict_read()
+            except YpsilonConnectionError as err:
+                _LOGGER.warning("Could not read valve clock before correction: %s", err)
+                return
+            # Sample the clock after waiting for other writes, not before.
+            try:
+                self._require_write_permission({FIELD_CURRENT_TIME: (0, 0)}, before_write)
+            except ServiceValidationError:
+                return
+            if self._model1_seen:
+                return
+            local = dt_util.now()
+            expected_time = f"{local.hour:02d}:{local.minute:02d}:00"
+            _LOGGER.info("Valve clock is %+d min out; correcting", drift)
             write_error: YpsilonConnectionError | None = None
             try:
                 await self.client.write_fields(
@@ -211,7 +295,12 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.warning("Could not confirm valve clock correction: %s", err)
                 return
 
-            if confirmed.get("currentTime") != expected_time:
+            if not self._clock_readback_matches(
+                confirmed.get("currentTime"),
+                expected_time,
+                time.monotonic() - clock_check_started,
+                previous_clock=before_write.get("currentTime"),
+            ):
                 if write_error is not None:
                     _LOGGER.warning(
                         "Valve clock write had an ambiguous transport result and read-back did not confirm it: %s",
@@ -227,7 +316,7 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._clock_syncs += 1
         confirmed["_clockSyncs"] = self._clock_syncs
-        confirmed["_clockDriftMinutes"] = 0
+        confirmed["_clockDriftMinutes"] = self._clock_drift(confirmed.get("currentTime"))
         data.clear()
         data.update(confirmed)
 
@@ -235,6 +324,7 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self, data: dict[str, Any], started: float
     ) -> dict[str, Any]:
         self._consecutive_failures = 0
+        self._observe_write_policy(data)
         self._decorate_semantics(data)
         self._apply_interval(data)
         data.update(
@@ -304,14 +394,63 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return expected
 
     @staticmethod
+    def _clock_readback_matches(
+        actual: Any, wanted: str, elapsed: float, *, previous_clock: Any = None
+    ) -> bool:
+        """Allow one ticking minute during a read/write window of at most 60s.
+
+        The wire clock has no seconds, so even a short read can cross a minute
+        boundary. Require a fresh pre-write clock different from the next-minute
+        value, so an ignored write cannot confirm an unchanged clock. This
+        tolerance is for currentTime only, never a schedule.
+        """
+        if actual == wanted:
+            return True
+        if not 0 < elapsed <= 60:
+            return False
+        try:
+            actual_h, actual_m, actual_s = (int(part) for part in actual.split(":"))
+            wanted_h, wanted_m, wanted_s = (int(part) for part in wanted.split(":"))
+            previous_h, previous_m, previous_s = (
+                int(part) for part in previous_clock.split(":")
+            )
+        except (AttributeError, TypeError, ValueError):
+            return False
+        if not (
+            0 <= actual_h < 24
+            and 0 <= actual_m < 60
+            and actual_s == 0
+            and 0 <= wanted_h < 24
+            and 0 <= wanted_m < 60
+            and wanted_s == 0
+            and 0 <= previous_h < 24
+            and 0 <= previous_m < 60
+            and previous_s == 0
+        ):
+            return False
+        actual_minutes = actual_h * 60 + actual_m
+        return (
+            (actual_minutes - (wanted_h * 60 + wanted_m)) % 1440 == 1
+            and actual_minutes != previous_h * 60 + previous_m
+        )
+
+    @staticmethod
     def _matches_expected(
         data: dict[str, Any],
         expected: dict[str, Any],
         *,
         accept_station_active: bool,
+        clock_elapsed: float = 0,
+        clock_before_write: Any = None,
     ) -> bool:
         for field_name, wanted in expected.items():
             actual = data.get(field_name)
+            if field_name == "currentTime":
+                if not YpsilonDataUpdateCoordinator._clock_readback_matches(
+                    actual, wanted, clock_elapsed, previous_clock=clock_before_write
+                ):
+                    return False
+                continue
             if field_name == "station" and accept_station_active:
                 if actual in (None, 0, 5):
                     return False
@@ -322,11 +461,23 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @staticmethod
     def _mismatch_text(
-        data: dict[str, Any], expected: dict[str, Any], *, accept_station_active: bool
+        data: dict[str, Any],
+        expected: dict[str, Any],
+        *,
+        accept_station_active: bool,
+        clock_elapsed: float = 0,
+        clock_before_write: Any = None,
     ) -> str:
         parts: list[str] = []
         for field_name, wanted in expected.items():
             actual = data.get(field_name)
+            if (
+                field_name == "currentTime"
+                and YpsilonDataUpdateCoordinator._clock_readback_matches(
+                    actual, wanted, clock_elapsed, previous_clock=clock_before_write
+                )
+            ):
+                continue
             if field_name == "station" and accept_station_active:
                 if actual in (None, 0, 5):
                     parts.append(f"station active (got {actual!r})")
@@ -334,16 +485,55 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 parts.append(f"{field_name}: expected {wanted!r}, got {actual!r}")
         return "; ".join(parts) or "read-back did not match"
 
+    async def async_start_regeneration(self) -> None:
+        """Start once from freshly verified service state, without overlapping requests."""
+        if self._regeneration_requested:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="regeneration_busy"
+            )
+        self._regeneration_requested = True
+        try:
+            await self.async_write_and_verify(
+                {FIELD_SYSTEM_MODE: 1},
+                accept_station_active=True,
+                require_in_service=True,
+            )
+        finally:
+            self._regeneration_requested = False
+
     async def async_write_and_verify(
         self,
         values: dict[int, Any],
         *,
         accept_station_active: bool = False,
+        require_in_service: bool = False,
     ) -> None:
         """Write once, then reconcile the controller through strict read-back."""
+        regeneration_start = (
+            values == {FIELD_SYSTEM_MODE: 1} and require_in_service and accept_station_active
+        )
+        self._require_write_permission(values, regeneration_start=regeneration_start)
         expected = self._expected_readback(values)
 
         async with self._mutation_lock:
+            self._require_write_permission(values, regeneration_start=regeneration_start)
+            # Include the baseline GET in the clock window: an ignored write
+            # must not look applied merely because two natural minutes passed.
+            clock_check_started = time.monotonic()
+            clock_before_write: Any = None
+            if require_in_service or "currentTime" in expected:
+                fresh = await self._async_strict_read()
+                self.async_set_updated_data(fresh)
+                self._require_write_permission(values, fresh, regeneration_start=regeneration_start)
+                clock_before_write = fresh.get("currentTime")
+                if require_in_service and (
+                    fresh.get("station") != 0
+                    or fresh.get("vacationPattern") is not False
+                ):
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN, translation_key="regeneration_not_ready"
+                    )
+
             write_error: YpsilonConnectionError | None = None
             try:
                 await self.client.write_fields(values)
@@ -373,6 +563,8 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         last_data,
                         expected,
                         accept_station_active=accept_station_active,
+                        clock_elapsed=time.monotonic() - clock_check_started,
+                        clock_before_write=clock_before_write,
                     ):
                         self.async_set_updated_data(last_data)
                         return
@@ -385,6 +577,8 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             last_data,
                             expected,
                             accept_station_active=accept_station_active,
+                            clock_elapsed=time.monotonic() - clock_check_started,
+                            clock_before_write=clock_before_write,
                         )
                     elif last_error is not None:
                         mismatch = f"confirmation reads failed: {last_error}"

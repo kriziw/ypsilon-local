@@ -1,123 +1,47 @@
-[English](architecture.md) | [Español](architecture.es.md) | [Català](architecture.ca.md)
-
 # Architecture
 
-Ypsilon is a Home Assistant integration first, but reverse-engineered device
-knowledge is intentionally kept below the Home Assistant layer so it can be
-reused and, if the ecosystem grows, extracted into a standalone Python package.
+[English](architecture.md) | [Català](architecture.ca.md) | [Español](architecture.es.md)
 
-## Dependency direction
+Runxin Local separates transport, wire profile, controller policy and Home Assistant presentation. **Controller model is not protocol profile**: multiple models can share a proven codec with different units, permissions or applicability; an unrelated family needs a different profile.
 
-```text
-Home Assistant entities / config flow / services
-                 |
-                 v
-        Ypsilon integration policy
-        (api.py + coordinator.py)
-                 |
-        +--------+---------+
-        |                  |
-        v                  v
-   Runxin F79D          transport
-   client/codec         implementation
-        |                  |
-        +--------+---------+
-                 |
-                 v
-             hardware
-```
+## Responsibilities
 
-The concrete tested path is:
+| Layer | Responsibility | Boundary |
+|---|---|---|
+| `transport/` | BroadLink discovery/authentication, encryption, TFB envelope, sockets and bounded retries | Carries raw Runxin frames; does not decode fields or choose units |
+| `runxin/framing.py` | Observed envelope, length/checksum validation and opcodes | No HA/BroadLink dependency |
+| `runxin/fields.py`, `f79d.py`, `semantics.py` | Current F79D catalogue, byte codecs and reference semantic labels | 52 fields are not a universal Runxin limit; G6 evidence is not every model's evidence |
+| `runxin/client.py` | Serialized protocol transactions, optional raw field-pair capture and matching response opcodes | Transport-neutral; does not grant HA model compatibility or controls |
+| `models.py` | Accepted identities, profile association, model conversions, uncertainty, effective permissions and evidence | New models default to no writes; API names are descriptive only |
+| `api.py` | Composition adapter for the currently proven F79D-compatible models on BL3372; field-52 cache and settle timing | Blocks writes before transport when model permission is absent; no packet/crypto implementation |
+| `coordinator.py` | HA polling, stale state, adaptive cadence and serialized write reconciliation | Enforces model policy for every mutation, including automatic clock sync |
+| Entity platforms / `services.py` | Presentation, applicable controls and administrator services | Do not construct packets; hiding a control is not the only write guard |
+| `compatibility.py` / `diagnostic_report.py` | Explicit bounded one-time read-only investigation and cached report storage | Separate from continuous polling; saved diagnostic entries never create a normal client |
 
-```text
-Home Assistant
-  -> YpsilonLocalClient
-  -> F79DClient
-  -> F79D field codec
-  -> Runxin raw frame
-  -> BroadlinkBL3372Transport
-  -> BL3372 0x6A/encryption/TFB
-  -> Runxin F79D valve
-```
+## Current extension strategy
 
-### Layer responsibilities
+The existing split is suitable for the models now observed. Reuse the shared F79D catalogue for a compatible controller and put proven model differences in the registry/presentation policy. Avoid copied `model_1.py`, `model_12.py`, etc. with duplicate packet tables.
 
-`runxin/`
-: Home-Assistant-independent device/protocol knowledge. It owns the observed
-  Runxin frame format, the F79D field catalogue, encoding/decoding and a small
-  transport-neutral `F79DClient`. It may call optional transport hooks such as
-  `transact_write()` but never imports a concrete transport.
+`protocol_profile` records the currently shared `f79d` path; it is **not yet a runtime factory for arbitrary codecs**. Setup still probes the observed F79D identity fields, and the composition adapter remains F79D/BL3372-specific. If a second genuinely different local profile is captured, add an explicit profile descriptor/selector (identity/read sets/catalogue/decoder/encoder), preserve `F79DClient`/`protocol.py` as compatibility facades and route the adapter through that proven profile. Do not create speculative RO/F104 codecs from cloud DTO names.
 
-`transport/`
-: How a raw Runxin frame reaches a controller. `broadlink_bl3372.py` owns
-  BroadLink authentication, encryption, packet `0x6A`, TFB length wrapping,
-  outer errors and bounded session/retry behavior. Reads may be retried within
-  known-safe limits; writes are sent at most once when delivery is ambiguous.
+The same rule applies to another transport: implement the raw-frame contract independently, then explicitly select it only for demonstrated hardware. BroadLink `0x520F` alone does not identify the Runxin field map.
 
-`api.py`
-: Composition adapter for the Ypsilon G6. It wires `F79DClient` to
-  `BroadlinkBL3372Transport` and retains the public/internal names used before
-  v2.4. It also owns Ypsilon-specific field-52 caching and write-settle timing.
+## Invariants
 
-`coordinator.py`
-: Home Assistant polling, stale-state tolerance, adaptive cadence, clock
-  reconciliation and strict physical write read-back. It serializes the whole
-  semantic mutation (`SET -> strict GET -> reconciliation`). An ACK is never
-  treated as proof of physical state, and a lost response never causes a blind
-  resend before the device is read again.
+- Protocol modules do not import HA/BroadLink; transport base does not import model field definitions.
+- Field receipt, physical meaning, unit calibration, theoretical encoding and effective write permission are separate evidence levels.
+- `allowed_write_fields` defaults empty. Model 1 explicitly allows verified manual field 4; opted-in tests of remaining settings use a separate field policy enforced by the coordinator and adapter. Automatic clock correction and field 7 remain blocked. Regeneration start has a separate opt-in; direct phase advancement is blocked.
+- Models 9/12 retain their original write surface and conversions, including explicitly documented pending actions.
+- Model 14 has Beta support and reuses the Midnight write surface based on issue #22; reported reads, verified writes and pending writes are recorded separately. Its field-26 U16 LE read override lives in `runxin/fields.py`; the client reuses a validated identity for partial reads, without extra I/O. G6/model-12 defaults remain unchanged.
+- Per-model byte-order/unit/enum changes require independent fixtures and regression coverage for all existing models.
+- An ACK alone never confirms physical state. Writes are not blindly retried after ambiguous delivery.
+- Unknown enum codes remain visible; missing fields are not invented as zero/false.
+- Provisional readings do not create long-term statistics; raw field pairs support later calibration.
+- The normal 1..51 read and separately cached field 52 stay unchanged. Cached field-52 bytes are not a simultaneous full snapshot.
+- Domain `ypsilon_local`, config-entry version 2, MAC identities, existing unique IDs and compatibility facades are retained. PR #24's domain migration is a separate pilot.
 
-entity platforms
-: Presentation and safe user controls only. They should not construct packets.
+The pure protocol layer remains extractable inside this repository. A separate PyPI package is deferred until another real consumer justifies release/dependency overhead. Do not make another custom integration depend on an installed `custom_components.ypsilon_local` at runtime.
 
-## Dependency rules
+See the [support matrix](model-support.md), [profile guide](adding-a-device-profile.md) and [compatibility reports](compatibility-report.md).
 
-The following are deliberate invariants and are checked by the offline audit:
-
-- `runxin/` must not import Home Assistant or BroadLink.
-- Runxin framing must not know BL3372 TFB/encryption/session details.
-- `transport/base.py` must not know F79D fields.
-- transports must return raw Runxin frames, not decoded device dictionaries.
-- `api.py` composes layers; it must not contain packet/encryption/field-codec logic.
-- Home Assistant entity ids, config-entry version and MAC identity strategy are
-  not changed by protocol refactors.
-- write retries must respect idempotency: an ambiguous SET is reconciled before
-  any possible resend.
-
-## Why the reusable code is still inside this repository
-
-A standalone PyPI communication library is the clean long-term reuse model.
-This project currently has one fully verified device/transport combination, so
-maintaining another package would add release/dependency overhead before there
-is a second real consumer.
-
-The code is therefore **extractable, not extracted**. If another transport,
-device profile or project starts consuming the protocol layer, `runxin/` can
-later become a separately versioned package with minimal churn.
-
-Do not make another Home Assistant custom integration depend at runtime on an
-installed `custom_components.ypsilon_local`. Contribute a transport/profile
-here, vendor the pure source where the license permits, or wait for a future
-standalone package.
-
-## Extension model
-
-A second transport for the same F79D should implement the raw-frame transaction
-contract without changing the F79D codec. A second Runxin controller should add
-a new device profile and only share framing when captures prove it is actually
-compatible. Do not generalize the current 52-field catalogue to all Runxin
-controllers by assumption.
-
-## Compatibility policy
-
-The 2.4.x architecture keeps:
-
-- domain `ypsilon_local`;
-- config-entry version 2;
-- MAC-based unique ids;
-- existing entity unique ids and translation keys;
-- `protocol.py` and `api.py` compatibility facades.
-
-The integration still supports only the hardware combination it can safely
-probe and validate: F79D model 9 with BroadLink BL3372 devtype `0x520F`. Making
-the lower layers reusable does **not** mean every Runxin valve or transport is
-supported by Home Assistant.
+The offline audit checks nested relative imports and transport dependencies. Exported `write_policy` distinguishes model evidence from configured/coordinator/adapter restrictions using cached metadata. For test environments and CI coverage, see [CONTRIBUTING](../CONTRIBUTING.md).

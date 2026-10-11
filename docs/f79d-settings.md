@@ -13,6 +13,23 @@ This document records settings recovered from the legacy WaterDevice advanced-se
 
 The stable Home Assistant state keys deliberately do not use translated text. The original raw code is retained as the `raw_code` entity attribute.
 
+## Controller-language evidence (2.9.3)
+
+The language row above is the **reference DeviceLanguage table**, not a universal mapping for every local controller. The [manufacturer API definition](https://api.waterdevice.net/api/abp/api-definition?includeTypes=true) types `DeviceProtocolDataDto.Language` as `Devices.Protocols.DeviceLanguage`; app/account language preferences use separate `Identity.LanguageType` / `LanguageVersion` enums. The examined frontend binds the device-language setting and account-language selector separately. Coinciding numeric codes do not prove those tables can be substituted.
+
+Physical displays establish only these overrides:
+
+| Controller model | Field-2 code | Reference label | Confirmed controller language |
+|---|---|---|---|
+| 1 (issue #17) | 7 | Polish | Dutch |
+| 9 (project Ypsilon G6) | 3 | French | Spanish |
+
+The [issue #17 reply](https://github.com/Danirv/runxin-local/issues/17#issuecomment-6096161743) confirms Dutch; the project G6 diagnostics report model 9/code 3 and its controller menus are Spanish. `device_language_keys()` applies only these pairs, with translated enum options and preserved `raw_code`. Models 12/14 and unobserved codes retain the reference labels. Missing readings remain unknown, and unknown codes remain decimal states. No language write is exposed.
+
+The cause of the local/reference discrepancy is not demonstrated. BroadLink firmware 62016 is the Wi-Fi module firmware, not proof that two valves share the same firmware or language table.
+
+The language sensor also reports `controller_model` and `interpretation` (`controller_display_confirmed` or `reference_device_language_enum`) so diagnostics distinguish observed labels from reference candidates.
+
 ## Numeric fields recovered from the same UI
 
 | Field | Protocol name | WaterDevice range | HA representation |
@@ -38,4 +55,4 @@ These UI ranges are separate from write-evidence policy. On the tested Ypsilon G
 
 ## Evidence source
 
-The enum mappings and UI ranges above come from the recovered legacy WaterDevice JavaScript configuration and enum modules. Field-7 byte order is intentionally taken from physical G6 evidence where the recovered application interpretation conflicts with the controller. These semantics are regression-tested in `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` and `scripts/audit.py`; translations remain complete in English, Spanish and Catalan.
+The reference enum mappings and UI ranges above come from the recovered legacy WaterDevice JavaScript configuration and enum modules. Field-7 byte order is intentionally taken from physical G6 evidence where the recovered application interpretation conflicts with the controller. These semantics are regression-tested in `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` and `scripts/audit.py`; translations remain complete in English, Spanish and Catalan.

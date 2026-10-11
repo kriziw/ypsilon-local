@@ -1,4 +1,4 @@
-"""Stable semantic mappings for enum-like Runxin F79D fields."""
+"""Reference semantic mappings and confirmed per-model F79D labels."""
 
 from __future__ import annotations
 
@@ -12,6 +12,22 @@ DEVICE_LANGUAGE_KEYS: dict[int, str] = {
     6: "german",
     7: "polish",
 }
+
+# Physical controller observations, not the app/account locale enumeration.
+# Only these model/code pairs are confirmed; retain every other reference label.
+DEVICE_LANGUAGE_OVERRIDES: dict[int, dict[int, str]] = {
+    1: {7: "dutch"},  # Issue #17: controller display, 2026-10-10.
+    9: {3: "spanish"},  # Project G6: field 2 = 3 and Spanish controller menus.
+}
+
+
+def device_language_keys(device_model: object) -> dict[int, str]:
+    """Return an independent label map for the observed controller model."""
+    result = DEVICE_LANGUAGE_KEYS.copy()
+    if type(device_model) is int:
+        result.update(DEVICE_LANGUAGE_OVERRIDES.get(device_model, {}))
+    return result
+
 
 DEVICE_TIME_SCHEME_KEYS: dict[int, str] = {
     0: "12_hour",

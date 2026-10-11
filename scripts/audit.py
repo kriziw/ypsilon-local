@@ -117,6 +117,47 @@ def protocol_checks() -> list[str]:
     return errors
 
 
+def layer_import_checks(relative: Path, source: str) -> list[str]:
+    """Keep wire codecs reusable, including nested profiles and relative imports."""
+    errors: list[str] = []
+    package = relative.parts[:-1]
+    layer = package[0]
+    for node in ast.walk(ast.parse(source)):
+        modules: list[str] = []
+        outside_package = False
+        if isinstance(node, ast.Import):
+            modules = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                outside_package = node.level > len(package)
+                base = package[:len(package) - node.level + 1] if node.level <= len(package) else ()
+                if layer == "runxin" and (not base or base[0] != "runxin"):
+                    errors.append(f"{relative} imports outside the pure runxin package")
+                    continue
+                prefix = ".".join((*base, *(node.module or "").split("."))).strip(".")
+            else:
+                prefix = node.module or ""
+            modules = [prefix, *(f"{prefix}.{alias.name}".strip(".") for alias in node.names)]
+        for module in modules:
+            root = module.split(".")[0]
+            bad = root == "homeassistant"
+            if layer == "runxin":
+                bad |= root in {"broadlink", "socket", "requests", "aiohttp", "httpx", "urllib", "http", "transport", "custom_components"}
+            if layer == "transport":
+                bad |= root == "custom_components" or (outside_package and root != "runxin")
+                if root == "runxin":
+                    # Neutral errors/framing are allowed, field/semantic maps are not.
+                    bad |= module != "runxin" and not any(
+                        module == allowed or module.startswith(allowed + ".")
+                        for allowed in ("runxin.errors", "runxin.framing")
+                    )
+                if relative == Path("transport/base.py"):
+                    bad |= root == "broadlink"
+            if bad:
+                errors.append(f"{relative} imports forbidden layer dependency {module}")
+    return sorted(set(errors))
+
+
 def architecture_checks() -> list[str]:
     errors: list[str] = []
     required = [
@@ -127,21 +168,9 @@ def architecture_checks() -> list[str]:
     for rel in required:
         if not (HERE / rel).exists():
             errors.append(f"missing architecture module: {rel}")
-    for path in (HERE / "runxin").glob("*.py"):
-        text = path.read_text()
-        imports: set[str] = set()
-        for node in ast.walk(ast.parse(text)):
-            if isinstance(node, ast.Import):
-                imports |= {a.name for a in node.names}
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imports.add(node.module)
-        bad = sorted(
-            x for x in imports
-            if x == "homeassistant" or x.startswith("homeassistant.")
-            or x == "broadlink" or x.startswith("broadlink.")
-        )
-        if bad:
-            errors.append(f"{path.relative_to(HERE)} imports {bad}")
+    for folder in ("runxin", "transport"):
+        for path in (HERE / folder).rglob("*.py"):
+            errors.extend(layer_import_checks(path.relative_to(HERE), path.read_text()))
     return errors
 
 
@@ -191,6 +220,10 @@ def branding_checks() -> list[str]:
 
 def repository_checks() -> list[str]:
     errors: list[str] = []
+    for workflow in (ROOT / ".github/workflows").glob("*.yml"):
+        for action in re.findall(r"^\s*(?:-\s*)?uses:\s*(\S+)", workflow.read_text(), re.M):
+            if not action.startswith("./") and not re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", action):
+                errors.append(f"{workflow.relative_to(ROOT)} action must use a full commit SHA: {action}")
     required = [
         "LICENSE", "NOTICE", "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md",
         "LEGAL.md", "THIRD_PARTY.md", "hacs.json", "info.md",
@@ -218,8 +251,8 @@ def repository_checks() -> list[str]:
     version = manifest.get("version")
     if not isinstance(version, str) or not SEMVER.fullmatch(version):
         errors.append(f"invalid manifest version: {version!r}")
-    if manifest.get("name") != "Ypsilon":
-        errors.append("manifest name != Ypsilon")
+    if manifest.get("name") != "Runxin Local":
+        errors.append("manifest name != Runxin Local")
     if (HERE / "strings.json").exists():
         errors.append("custom integration must not ship strings.json")
 

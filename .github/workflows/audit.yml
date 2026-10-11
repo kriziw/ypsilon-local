@@ -12,12 +12,12 @@ jobs:
     name: Offline audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
       - name: Install offline test dependencies
-        run: python -m pip install --disable-pip-version-check pytest python-broadlink==1.0.6
+        run: python -m pip install --disable-pip-version-check -r requirements-test-offline.txt
       - name: Publication metadata check
         run: python scripts/publication_check.py
       - name: Integration audit and protocol regressions
@@ -28,3 +28,29 @@ jobs:
         run: python -m pytest -q
       - name: Compile Python
         run: python -m compileall -q custom_components/ypsilon_local scripts tests
+
+  home-assistant:
+    name: Home Assistant regressions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install Home Assistant test dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-test-ha.txt
+      - name: Test config flow, entities, controls and diagnostics
+        run: python -m pytest -q
+
+  home-assistant-baseline:
+    name: Home Assistant baseline 2026.9.3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+      - name: Install earlier Home Assistant test dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-test-ha-baseline.txt
+      - name: Test all regressions on the earlier reported HA release
+        run: python -m pytest -q

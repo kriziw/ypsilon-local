@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "custom_components" / "ypsilon_local" / "manifest.json"
 SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 CHANGELOG_VERSION = re.compile(r"^## \[([^\]]+)\]", re.MULTILINE)
-INFO_VERSION = re.compile(r"^# Ypsilon ([^\s]+)\s*$", re.MULTILINE)
+INFO_VERSION = re.compile(r"^# Runxin Local ([^\s]+)\s*$", re.MULTILINE)
 
 
 def main() -> int:

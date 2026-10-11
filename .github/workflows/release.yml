@@ -21,14 +21,14 @@ jobs:
             echo "Run this workflow from the main branch, not $GITHUB_REF"
             exit 1
           }
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
       - name: Install release-test dependencies
-        run: python -m pip install --disable-pip-version-check pytest python-broadlink==1.0.6
+        run: python -m pip install --disable-pip-version-check -r requirements-test-offline.txt
       - name: Resolve manifest version
         id: version
         shell: bash
@@ -62,7 +62,7 @@ jobs:
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "Ypsilon $VERSION" "$GITHUB_SHA"
+            git tag -a "$TAG" -m "Runxin Local $VERSION" "$GITHUB_SHA"
             git push origin "$TAG"
           fi
       - name: Check out tagged release source
@@ -93,18 +93,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-        run: gh release create "$TAG" "ypsilon_local-${TAG}.zip" --verify-tag --generate-notes --title "Ypsilon ${TAG}"
+        shell: bash
+        run: |
+          FLAGS=()
+          if [[ "$TAG" == *-* ]]; then
+            FLAGS+=(--prerelease --latest=false)
+          fi
+          gh release create "$TAG" "ypsilon_local-${TAG}.zip" --verify-tag --generate-notes --title "Runxin Local ${TAG}" "${FLAGS[@]}"
 
   tag-release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
       - name: Install release-test dependencies
-        run: python -m pip install --disable-pip-version-check pytest python-broadlink==1.0.6
+        run: python -m pip install --disable-pip-version-check -r requirements-test-offline.txt
       - name: Validate release source
         run: |
           python scripts/publication_check.py
@@ -132,4 +138,10 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "ypsilon_local-${GITHUB_REF_NAME}.zip" --verify-tag --generate-notes --title "Ypsilon ${GITHUB_REF_NAME}"
+        shell: bash
+        run: |
+          FLAGS=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            FLAGS+=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" "ypsilon_local-${GITHUB_REF_NAME}.zip" --verify-tag --generate-notes --title "Runxin Local ${GITHUB_REF_NAME}" "${FLAGS[@]}"

@@ -1,25 +1,56 @@
 {
-  "title": "Ypsilon",
+  "title": "Runxin Local",
   "config": {
     "step": {
-      "user": {"title": "Connect Ypsilon Softener", "description": "Enter the BL3372 local IP address.", "data": {"host": "IP Address"}},
-      "discovery_confirm": {"title": "Ypsilon Discovered", "description": "A device was discovered at {host}. Do you want to configure it?"},
-      "reconfigure": {"title": "Change IP address", "data": {"host": "Host"}}
+      "readonly_alpha": {"title": "Alpha with validated manual clock controls", "description": "This controller has experimental readings. Device clock and the manual Sync clock button are validated and available without enabling experimental settings. The integration polls once per minute by default and never corrects this model’s clock automatically. Other settings and regeneration tests require explicit options. Resin and per-cycle capacity have unconfirmed units; provisional numeric readings do not generate long-term statistics. Download diagnostics from the entry menu to share received field bytes."},
+      "user": {"title": "Connect a Runxin softener", "description": "Enter the BL3372 local IP address.", "data": {"host": "IP Address", "diagnostic_only": "Prepare a read-only diagnostic report only"}, "data_description": {"diagnostic_only": "Enable this to collect a one-time report without adding controls. Useful for unlisted models or connection problems."}},
+      "discovery_confirm": {"title": "Runxin-compatible device discovered", "description": "A device was discovered at {host}. Do you want to configure it?"},
+      "reconfigure": {"title": "Change IP address", "data": {"host": "Host"}},
+      "diagnostic_offer": {"title": "Prepare a compatibility report", "description": "Controller reported: {controller}. You can collect a local, read-only report even if setup did not succeed. The scan takes up to about three minutes, uses standard discovery/authentication and field queries, and does not change settings or start regeneration. Close vendor apps during the scan. Nothing is uploaded automatically.", "data": {"generate_report": "Prepare the read-only report"}},
+      "diagnostic_scan": {"title": "Collecting a read-only report", "description": "Reading the device once. This may take up to about three minutes. Cancelling stops further requests after the current request finishes."},
+      "diagnostic_ready": {"title": "Report ready", "description": "Observed fields: {fields} of 52. Partial reports are useful. Submit to save a diagnostic-only entry, then download diagnostics from that entry’s menu in Settings → Devices & services. The entry has no controls or periodic polling and does not repeat the scan after a restart. [Open an issue with the prepared summary]({issue_url}), attach the downloaded JSON, and add your brand/model and a few app/controller readings with units. Delete this diagnostic entry before adding the device normally once support is available."}
     },
-    "error": {"cannot_connect": "Failed to connect to the device.", "unsupported_device": "Unsupported controller model."},
-    "abort": {"already_configured": "Device is already configured.", "wrong_device": "That IP belongs to a different device.", "reconfigure_successful": "Address updated.", "unsupported_device": "This controller model is not supported (supported: Ypsilon G6 model 9, Euro-Clear Midnight model 12).", "cannot_connect": "Could not connect to the device."}
+    "error": {
+      "invalid_auth": "The device responded but rejected local authentication. Check the connection troubleshooting guide and debug logs.",
+      "device_locked": "The device rejected local authentication and advertised a local-control lock. Check whether the vendor app offers a lock or local-control setting; see the troubleshooting guide before resetting it.",
+      "cannot_connect": "Failed to connect to the device.",
+      "unsupported_device": "Unsupported controller model."
+    },
+    "abort": {
+      "invalid_auth": "The device responded but rejected local authentication. Check the connection troubleshooting guide and debug logs.",
+      "device_locked": "The device rejected local authentication and advertised a local-control lock. Check whether the vendor app offers a lock or local-control setting; see the troubleshooting guide before resetting it.",
+      "already_configured": "Device is already configured.",
+      "wrong_device": "That IP belongs to a different device.",
+      "reconfigure_successful": "Address updated.",
+      "unsupported_device": "This controller model is not supported. You can collect a read-only compatibility report.",
+      "cannot_connect": "Could not connect to the device.",
+      "diagnostic_in_progress": "A diagnostic report is already being collected for this address. Wait for it to finish.",
+      "diagnostic_declined": "Diagnostic report was not requested.",
+      "diagnostic_failed": "Could not prepare the diagnostic report. Try again later or use the standalone diagnostic instructions.",
+      "diagnostic_only": "This entry holds a saved diagnostic report only. Download diagnostics from its menu. Delete it before adding the device normally or collecting a new report."
+    },
+    "progress": {
+      "collecting_report": "Reading the device once. This may take up to about three minutes. Cancelling stops further requests after the current request finishes."
+    }
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Ypsilon Options",
-        "data": {"scan_interval": "Polling interval (s)", "adaptive_polling": "Adaptive polling", "active_scan_interval": "Interval while active (s)", "auto_sync_clock": "Sync clock automatically", "clock_tolerance_minutes": "Clock tolerance (min)"},
-        "data_description": {"adaptive_polling": "Poll more often while water is flowing or the valve is in a regeneration or vacation transition detected from read-back state.", "active_scan_interval": "Only used when adaptive polling is enabled.", "auto_sync_clock": "Corrects the valve clock when it drifts, including the seasonal daylight saving change, which the softener does not apply itself.", "clock_tolerance_minutes": "Maximum drift tolerated before correcting."}
-      }
+      "init": {"title": "Runxin Local options", "data": {"scan_interval": "Polling interval (s)", "adaptive_polling": "Adaptive polling", "active_scan_interval": "Interval while active (s)", "auto_sync_clock": "Sync clock automatically", "clock_tolerance_minutes": "Clock tolerance (min)", "model1_test_writes": "Enable experimental model-1 settings", "model1_test_regeneration": "Enable experimental model-1 regeneration start"}, "data_description": {"adaptive_polling": "Poll more often while water is flowing or the valve is in a regeneration or vacation transition detected from read-back state.", "active_scan_interval": "Only used when adaptive polling is enabled.", "auto_sync_clock": "Corrects the valve clock when it drifts, including the seasonal daylight saving change, which the softener does not apply itself.", "clock_tolerance_minutes": "Maximum drift tolerated before correcting.", "model1_test_writes": "Allows experimental tests of continuous-flow time, regeneration schedule, added salt and hardness. Device clock and manual Sync clock are already available without this option. These additional writes are not hardware-verified on model 1. Record the baseline, confirm in the app/controller and restore it. Automatic clock correction and flow-cutoff writes stay blocked.", "model1_test_regeneration": "Also requires experimental settings enabled. Adds the regeneration-start button for a planned physical test. Moves the valve and uses water/salt. Phase advancement and vacation writes remain blocked."}}
+    },
+    "abort": {
+      "diagnostic_only": "This entry holds a saved diagnostic report only. Download diagnostics from its menu. Delete it before adding the device normally or collecting a new report."
     }
   },
   "entity": {
     "sensor": {
+      "reference_clock": {"name": "Device clock · Reading"},
+      "reference_schedule": {"name": "Regeneration schedule · Reference"},
+      "reference_salt": {"name": "Added salt · Reference"},
+      "reference_hardness": {"name": "Hardness · Reference"},
+      "reference_continuous_flow": {"name": "Continuous-flow timeout · Reference"},
+      "reference_flow_cutoff": {"name": "Flow cutoff · Raw reference"},
+      "reference_close_reason": {"name": "Closure reason · Raw reference"},
+
       "flow_rate": {"name": "Flow rate"},
       "daily_water": {"name": "Daily consumption"},
       "residual_water": {"name": "Remaining treatment capacity"},
@@ -40,7 +71,7 @@
       "resin_volume": {"name": "Resin volume"},
       "filter_work_days": {"name": "Filter media service interval"},
       "device_model": {"name": "Model"},
-      "language_code": {"name": "Device language", "state": {"chinese": "Chinese", "english": "English", "spanish": "Spanish", "french": "French", "russian": "Russian", "italian": "Italian", "german": "German", "polish": "Polish"}},
+      "language_code": {"name": "Device language", "state": {"chinese": "Chinese", "english": "English", "spanish": "Spanish", "french": "French", "russian": "Russian", "italian": "Italian", "german": "German", "polish": "Polish", "dutch": "Dutch"}},
       "device_time_scheme": {"name": "Time format", "state": {"12_hour": "12-hour", "24_hour": "24-hour"}},
       "washing_increase_number": {"name": "Washing frequency"},
       "backwash_interval_number": {"name": "Backwash interval count"},
@@ -84,24 +115,70 @@
       "continuous_water_time": {"name": "Continuous water limit"},
       "flow_rate_off": {"name": "Flow rate cutoff limit"}
     },
-    "time": {"regenerating_trigger_time": {"name": "Regeneration time"}, "device_clock": {"name": "Device time"}},
-    "button": {"force_regeneration": {"name": "Force regeneration"}, "sync_clock": {"name": "Sync clock"}}
+    "time": {
+      "regenerating_trigger_time": {"name": "Regeneration time"},
+      "device_clock": {"name": "Device time"}
+    },
+    "button": {
+      "force_regeneration": {"name": "Force regeneration"},
+      "sync_clock": {"name": "Sync clock"}
+    }
   },
   "services": {
-    "write_fields": {"name": "Write fields", "description": "Write reversible F79D configuration fields in a single 0x19 frame. Mechanical/state-machine fields are exposed only when their local action has been verified.", "fields": {"config_entry_id": {"name": "Device", "description": "Config entry."}, "fields": {"name": "Fields", "description": "Mapping of field id to raw value. For time fields use [hour, minute]. Field 7 is raw hundredths."}}},
-    "advance_phase": {"name": "Advance phase", "description": "Writes system mode to move the regeneration state machine (0-4). Mechanical operation: use with care.", "fields": {"config_entry_id": {"name": "Device", "description": "Config entry."}, "phase": {"name": "Phase", "description": "0 service, 1-4 regeneration stages."}}}
+    "write_fields": {
+      "name": "Write fields",
+      "description": "Write reversible F79D configuration fields in a single 0x19 frame. Mechanical/state-machine fields are exposed only when their local action has been verified.",
+      "fields": {"config_entry_id": {"name": "Device", "description": "Config entry."}, "fields": {"name": "Fields", "description": "Mapping of field id to raw value. For time fields use [hour, minute]. Field 7 is raw hundredths."}}
+    },
+    "advance_phase": {
+      "name": "Advance phase",
+      "description": "Writes system mode to move the regeneration state machine (0-4). Mechanical operation: use with care.",
+      "fields": {"config_entry_id": {"name": "Device", "description": "Config entry."}, "phase": {"name": "Phase", "description": "0 service, 1-4 regeneration stages."}}
+    }
   },
   "exceptions": {
-    "write_failed": {"message": "Could not write {name} to the softener: {error}"},
-    "below_minimum": {"message": "{value} is below the allowed minimum ({minimum})."},
-    "above_maximum": {"message": "{value} is above the allowed maximum ({maximum})."},
-    "unsupported_flow_unit": {"message": "The flow cutoff control is only enabled for the verified cubic-metre unit mode."},
-    "service_entry_not_found": {"message": "No Ypsilon config entry exists with id {entry_id}."},
-    "service_entry_not_loaded": {"message": "The selected Ypsilon config entry is not loaded."},
-    "service_fields_not_writable": {"message": "These fields are not allowed by the safe write policy: {fields}."},
-    "service_field_invalid_value": {"message": "Field {field} has an invalid value: {value}."},
-    "service_field_out_of_range": {"message": "Field {field} value {value} is outside the allowed range {minimum}–{maximum}."},
-    "service_write_failed": {"message": "The F79D write could not be confirmed: {error}"},
-    "service_phase_failed": {"message": "The regeneration phase change could not be confirmed: {error}"}
+    "model_write_not_allowed": {"message": "This controller does not permit the requested setting or action. Check its supported controls and any required experimental options."},
+    "regeneration_busy": {
+      "message": "A regeneration request is already being processed. Wait for it to finish."
+    },
+    "regeneration_not_ready": {
+      "message": "Regeneration can only start after a fresh reading confirms that the valve is in service and vacation mode is off."
+    },
+    "write_failed": {
+      "message": "Could not write {name} to the softener: {error}"
+    },
+    "below_minimum": {
+      "message": "{value} is below the allowed minimum ({minimum})."
+    },
+    "above_maximum": {
+      "message": "{value} is above the allowed maximum ({maximum})."
+    },
+    "unsupported_flow_unit": {
+      "message": "The flow cutoff control is only enabled for the verified cubic-metre unit mode."
+    },
+    "service_entry_not_found": {
+      "message": "No Runxin Local config entry exists with id {entry_id}."
+    },
+    "service_entry_not_loaded": {
+      "message": "The selected Runxin Local config entry is not loaded."
+    },
+    "service_fields_not_writable": {
+      "message": "These fields are not allowed by the safe write policy: {fields}."
+    },
+    "service_field_invalid_value": {
+      "message": "Field {field} has an invalid value: {value}."
+    },
+    "service_field_out_of_range": {
+      "message": "Field {field} value {value} is outside the allowed range {minimum}–{maximum}."
+    },
+    "service_write_failed": {
+      "message": "The F79D write could not be confirmed: {error}"
+    },
+    "service_phase_failed": {
+      "message": "The regeneration phase change could not be confirmed: {error}"
+    },
+    "diagnostic_read_only": {
+      "message": "Diagnostic entries cannot send configuration or regeneration commands."
+    }
   }
 }

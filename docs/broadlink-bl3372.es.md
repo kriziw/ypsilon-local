@@ -35,7 +35,7 @@ El transporte nunca decodifica campos F79D.
 Se reutiliza una sesión autenticada y las transacciones se serializan. En
 lecturas idempotentes:
 
-- `-1` / `-7`: se permite una nueva autenticación;
+- respuesta externa `-1` / `-7` después de autenticar: se permite una nueva autenticación;
 - `-5`: es empíricamente transitorio en el hardware probado y admite reintentos
   breves, acotados y con jitter;
 - los presupuestos de reautenticación y `-5` son independientes.
@@ -57,6 +57,14 @@ en acciones mecánicas como forzar una regeneración.
 
 Se exponen contadores de reintentos transitorios de lectura, reautenticaciones y
 versión de firmware BroadLink cuando se puede leer.
+
+También se conserva la última etapa del transporte, el tipo de dispositivo, el
+bloqueo anunciado y el tipo/código de la última transacción fallida. El bit
+anunciado no impide intentar la autenticación. El rechazo del handshake inicial
+se distingue de los errores externos posteriores y no se reintenta automáticamente.
+Los nuevos registros omiten identificadores, claves, paquetes y texto de las
+excepciones. Consulta la [guía de conexión](troubleshooting.es.md) para obtener
+registros o el informe independiente.
 
 ## Sustituir BroadLink
 

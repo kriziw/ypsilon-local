@@ -1,21 +1,56 @@
 {
-  "title": "Ypsilon",
+  "title": "Runxin Local",
   "config": {
     "step": {
-      "user": {"title": "Conectar descalcificador Ypsilon", "description": "Introduce la dirección IP local del BL3372.", "data": {"host": "Dirección IP"}},
-      "discovery_confirm": {"title": "Ypsilon detectado", "description": "Se ha detectado un dispositivo en {host}. ¿Quieres configurarlo?"},
-      "reconfigure": {"title": "Cambiar dirección IP", "data": {"host": "Host"}}
+      "readonly_alpha": {"title": "Alpha con controles manuales del reloj validados", "description": "Este controlador tiene lecturas experimentales. El reloj del dispositivo y el botón de sincronización manual están validados y disponibles sin activar los ajustes experimentales. Por defecto se consulta cada minuto y la integración no corrige automáticamente el reloj de este modelo. Los demás ajustes y las pruebas de regeneración requieren opciones explícitas. La resina y la capacidad por ciclo no tienen unidades confirmadas; las lecturas numéricas provisionales no generan estadísticas a largo plazo. Descarga los diagnósticos desde el menú de la entrada para compartir los bytes recibidos."},
+      "user": {"title": "Conecta un descalcificador Runxin", "description": "Introduce la dirección IP local del BL3372.", "data": {"host": "Dirección IP", "diagnostic_only": "Preparar solo un informe de diagnóstico de lectura"}, "data_description": {"diagnostic_only": "Actívalo para recoger un informe puntual sin añadir controles. Útil para modelos no admitidos o problemas de conexión."}},
+      "discovery_confirm": {"title": "Dispositivo compatible con Runxin descubierto", "description": "Se ha detectado un dispositivo en {host}. ¿Quieres configurarlo?"},
+      "reconfigure": {"title": "Cambiar dirección IP", "data": {"host": "Host"}},
+      "diagnostic_offer": {"title": "Prepara un informe de compatibilidad", "description": "Controlador indicado: {controller}. Puedes recoger un informe local de lectura aunque el alta no haya funcionado. La exploración dura aproximadamente tres minutos como máximo, realiza descubrimiento/autenticación habitual y consultas de campos, y no cambia parámetros ni inicia regeneraciones. Cierra las apps del fabricante durante la exploración. No se sube nada automáticamente.", "data": {"generate_report": "Preparar el informe de lectura"}},
+      "diagnostic_scan": {"title": "Recopilando un informe de lectura", "description": "Se está leyendo el dispositivo una vez. Puede tardar aproximadamente tres minutos. Si cancelas, no se harán más peticiones después de que termine la petición en curso."},
+      "diagnostic_ready": {"title": "Informe preparado", "description": "Campos observados: {fields} de 52. Los informes parciales son útiles. Confirma para guardar una entrada solo de diagnóstico; después descarga los diagnósticos desde su menú en Ajustes → Dispositivos y servicios. La entrada no tiene controles ni consultas periódicas y no repite la exploración tras un reinicio. [Abre una issue con el resumen preparado]({issue_url}), adjunta el JSON descargado y añade marca/modelo y algunas lecturas de la app o del controlador con sus unidades. Elimina esta entrada de diagnóstico antes de añadir el dispositivo normalmente cuando tenga soporte."}
     },
-    "error": {"cannot_connect": "No se ha podido conectar con el dispositivo.", "unsupported_device": "Modelo de controlador no compatible."},
-    "abort": {"already_configured": "Este dispositivo ya está configurado.", "wrong_device": "Esa IP pertenece a otro dispositivo.", "reconfigure_successful": "Dirección actualizada.", "unsupported_device": "Este modelo de controlador no es compatible (compatibles: Ypsilon G6 modelo 9, Euro-Clear Midnight modelo 12).", "cannot_connect": "No se ha podido conectar con el dispositivo."}
+    "error": {
+      "invalid_auth": "El dispositivo ha respondido pero ha rechazado la autenticación local. Consulta la guía de resolución de problemas de conexión y los registros de depuración.",
+      "device_locked": "El dispositivo ha rechazado la autenticación local y ha anunciado un bloqueo del control local. Comprueba si la app del fabricante ofrece alguna opción de bloqueo o control local; consulta la guía antes de restablecerlo.",
+      "cannot_connect": "No se ha podido conectar con el dispositivo.",
+      "unsupported_device": "Modelo de controlador no compatible."
+    },
+    "abort": {
+      "invalid_auth": "El dispositivo ha respondido pero ha rechazado la autenticación local. Consulta la guía de resolución de problemas de conexión y los registros de depuración.",
+      "device_locked": "El dispositivo ha rechazado la autenticación local y ha anunciado un bloqueo del control local. Comprueba si la app del fabricante ofrece alguna opción de bloqueo o control local; consulta la guía antes de restablecerlo.",
+      "already_configured": "Este dispositivo ya está configurado.",
+      "wrong_device": "Esa IP pertenece a otro dispositivo.",
+      "reconfigure_successful": "Dirección actualizada.",
+      "unsupported_device": "Este modelo de controlador no está admitido. Puedes recopilar un informe de compatibilidad de solo lectura.",
+      "cannot_connect": "No se ha podido conectar con el dispositivo.",
+      "diagnostic_in_progress": "Ya se está recogiendo un informe de diagnóstico para esta dirección. Espera a que termine.",
+      "diagnostic_declined": "No se ha solicitado el informe de diagnóstico.",
+      "diagnostic_failed": "No se ha podido preparar el informe. Inténtalo más adelante o consulta las instrucciones del diagnóstico independiente.",
+      "diagnostic_only": "Esta entrada solo conserva un informe de diagnóstico guardado. Descárgalo desde su menú. Elimínala antes de añadir el dispositivo normalmente o recoger un informe nuevo."
+    },
+    "progress": {
+      "collecting_report": "Se está leyendo el dispositivo una vez. Puede tardar aproximadamente tres minutos. Si cancelas, no se harán más peticiones después de que termine la petición en curso."
+    }
   },
-  "options": {"step": {"init": {
-    "title": "Opciones de Ypsilon",
-    "data": {"scan_interval": "Intervalo de consulta (s)", "adaptive_polling": "Sondeo adaptativo", "active_scan_interval": "Intervalo durante actividad (s)", "auto_sync_clock": "Sincronizar el reloj automáticamente", "clock_tolerance_minutes": "Tolerancia del reloj (min)"},
-    "data_description": {"adaptive_polling": "Consulta con más frecuencia mientras circula agua o la válvula está en una transición mecánica de regeneración o vacaciones detectada en lectura.", "active_scan_interval": "Solo se utiliza cuando el sondeo adaptativo está activado.", "auto_sync_clock": "Corrige la hora de la válvula cuando se desvía, incluido el cambio horario estacional que el descalcificador no aplica por sí mismo.", "clock_tolerance_minutes": "Desviación máxima permitida antes de corregir la hora."}
-  }}},
+  "options": {
+    "step": {
+      "init": {"title": "Opciones de Runxin Local", "data": {"scan_interval": "Intervalo de consulta (s)", "adaptive_polling": "Sondeo adaptativo", "active_scan_interval": "Intervalo durante actividad (s)", "auto_sync_clock": "Sincronizar el reloj automáticamente", "clock_tolerance_minutes": "Tolerancia del reloj (min)", "model1_test_writes": "Activar ajustes experimentales del modelo 1", "model1_test_regeneration": "Activar inicio experimental de regeneración del modelo 1"}, "data_description": {"adaptive_polling": "Consulta con más frecuencia mientras circula agua o la válvula está en una transición mecánica de regeneración o vacaciones detectada en lectura.", "active_scan_interval": "Solo se utiliza cuando el sondeo adaptativo está activado.", "auto_sync_clock": "Corrige la hora de la válvula cuando se desvía, incluido el cambio horario estacional que el descalcificador no aplica por sí mismo.", "clock_tolerance_minutes": "Desviación máxima permitida antes de corregir la hora.", "model1_test_writes": "Permite probar el tiempo de caudal continuo, el horario de regeneración, la sal añadida y la dureza. El reloj y la sincronización manual ya están disponibles sin esta opción. Estas escrituras adicionales no están verificadas físicamente en el modelo 1. Anota el valor inicial, contrástalo con la app/controlador y restáuralo. La corrección automática del reloj y el corte por caudal siguen bloqueados.", "model1_test_regeneration": "También requiere activar los ajustes experimentales. Añade el botón de inicio para una prueba física de regeneración prevista. Mueve la válvula y consume agua/sal. El avance de fases y las escrituras de vacaciones siguen bloqueados."}}
+    },
+    "abort": {
+      "diagnostic_only": "Esta entrada solo conserva un informe de diagnóstico guardado. Descárgalo desde su menú. Elimínala antes de añadir el dispositivo normalmente o recoger un informe nuevo."
+    }
+  },
   "entity": {
     "sensor": {
+      "reference_clock": {"name": "Reloj del dispositivo · Lectura"},
+      "reference_schedule": {"name": "Horario de regeneración · Referencia"},
+      "reference_salt": {"name": "Sal añadida · Referencia"},
+      "reference_hardness": {"name": "Dureza · Referencia"},
+      "reference_continuous_flow": {"name": "Tiempo de caudal continuo · Referencia"},
+      "reference_flow_cutoff": {"name": "Corte por caudal · Referencia bruta"},
+      "reference_close_reason": {"name": "Motivo de cierre · Referencia bruta"},
+
       "flow_rate": {"name": "Caudal"},
       "daily_water": {"name": "Consumo diario"},
       "residual_water": {"name": "Capacidad de tratamiento restante"},
@@ -39,7 +74,7 @@
       "resin_volume": {"name": "Volumen de resina"},
       "filter_work_days": {"name": "Intervalo de mantenimiento del material filtrante"},
       "device_model": {"name": "Modelo"},
-      "language_code": {"name": "Idioma del dispositivo", "state": {"chinese": "Chino", "english": "Inglés", "spanish": "Español", "french": "Francés", "russian": "Ruso", "italian": "Italiano", "german": "Alemán", "polish": "Polaco"}},
+      "language_code": {"name": "Idioma del dispositivo", "state": {"chinese": "Chino", "english": "Inglés", "spanish": "Español", "french": "Francés", "russian": "Ruso", "italian": "Italiano", "german": "Alemán", "polish": "Polaco", "dutch": "Neerlandés"}},
       "device_time_scheme": {"name": "Formato horario", "state": {"12_hour": "12 horas", "24_hour": "24 horas"}},
       "washing_increase_number": {"name": "Frecuencia de lavado"},
       "backwash_interval_number": {"name": "Intervalo entre contralavados"},
@@ -74,25 +109,76 @@
       "filter_reminder": {"name": "Recordatorio del material filtrante"},
       "communication_problem": {"name": "Problema de comunicación local"}
     },
-    "number": {"salt_addition": {"name": "Cantidad de sal añadida"}, "raw_water_hardness": {"name": "Dureza del agua de entrada"}, "continuous_water_time": {"name": "Límite de flujo continuo"}, "flow_rate_off": {"name": "Límite de cierre por caudal"}},
-    "time": {"regenerating_trigger_time": {"name": "Hora de regeneración"}, "device_clock": {"name": "Hora del dispositivo"}},
-    "button": {"force_regeneration": {"name": "Forzar regeneración"}, "sync_clock": {"name": "Sincronizar reloj"}}
+    "number": {
+      "salt_addition": {"name": "Cantidad de sal añadida"},
+      "raw_water_hardness": {"name": "Dureza del agua de entrada"},
+      "continuous_water_time": {"name": "Límite de flujo continuo"},
+      "flow_rate_off": {"name": "Límite de cierre por caudal"}
+    },
+    "time": {
+      "regenerating_trigger_time": {"name": "Hora de regeneración"},
+      "device_clock": {"name": "Hora del dispositivo"}
+    },
+    "button": {
+      "force_regeneration": {"name": "Forzar regeneración"},
+      "sync_clock": {"name": "Sincronizar reloj"}
+    }
   },
   "services": {
-    "write_fields": {"name": "Escribir campos", "description": "Escribe campos de configuración F79D reversibles en una sola trama 0x19. Los campos mecánicos o de máquina de estados solo se exponen cuando su acción local ha sido verificada.", "fields": {"config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."}, "fields": {"name": "Campos", "description": "Mapa de id de campo a valor bruto. Para campos de hora usa [hora, minuto]. El campo 7 usa centésimas en bruto."}}},
-    "advance_phase": {"name": "Avanzar fase", "description": "Escribe el modo del sistema para mover la máquina de estados de regeneración (0-4). Operación mecánica: usar con precaución.", "fields": {"config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."}, "phase": {"name": "Fase", "description": "0 servicio, 1-4 fases de regeneración."}}}
+    "write_fields": {
+      "name": "Escribir campos",
+      "description": "Escribe campos de configuración F79D reversibles en una sola trama 0x19. Los campos mecánicos o de máquina de estados solo se exponen cuando su acción local ha sido verificada.",
+      "fields": {"config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."}, "fields": {"name": "Campos", "description": "Mapa de id de campo a valor bruto. Para campos de hora usa [hora, minuto]. El campo 7 usa centésimas en bruto."}}
+    },
+    "advance_phase": {
+      "name": "Avanzar fase",
+      "description": "Escribe el modo del sistema para mover la máquina de estados de regeneración (0-4). Operación mecánica: usar con precaución.",
+      "fields": {"config_entry_id": {"name": "Dispositivo", "description": "Entrada de configuración."}, "phase": {"name": "Fase", "description": "0 servicio, 1-4 fases de regeneración."}}
+    }
   },
   "exceptions": {
-    "write_failed": {"message": "No se ha podido escribir {name} en el descalcificador: {error}"},
-    "below_minimum": {"message": "{value} está por debajo del mínimo permitido ({minimum})."},
-    "above_maximum": {"message": "{value} supera el máximo permitido ({maximum})."},
-    "unsupported_flow_unit": {"message": "El control del límite de cierre por caudal solo está habilitado para el modo verificado en metros cúbicos."},
-    "service_entry_not_found": {"message": "No existe una entrada de configuración de Ypsilon con id {entry_id}."},
-    "service_entry_not_loaded": {"message": "La entrada de configuración de Ypsilon seleccionada no está cargada."},
-    "service_fields_not_writable": {"message": "Estos campos no están permitidos por la política segura de escritura: {fields}."},
-    "service_field_invalid_value": {"message": "El campo {field} tiene un valor no válido: {value}."},
-    "service_field_out_of_range": {"message": "El valor {value} del campo {field} queda fuera del rango permitido {minimum}–{maximum}."},
-    "service_write_failed": {"message": "No se ha podido confirmar la escritura F79D: {error}"},
-    "service_phase_failed": {"message": "No se ha podido confirmar el cambio de fase de regeneración: {error}"}
+    "model_write_not_allowed": {"message": "Este controlador no permite el ajuste o la acción solicitados. Comprueba los controles admitidos y las opciones experimentales necesarias."},
+    "regeneration_busy": {
+      "message": "Ya se está procesando una petición de regeneración. Espera a que termine."
+    },
+    "regeneration_not_ready": {
+      "message": "La regeneración solo puede comenzar cuando una lectura nueva confirma que la válvula está en servicio y el modo vacaciones está desactivado."
+    },
+    "write_failed": {
+      "message": "No se ha podido escribir {name} en el descalcificador: {error}"
+    },
+    "below_minimum": {
+      "message": "{value} está por debajo del mínimo permitido ({minimum})."
+    },
+    "above_maximum": {
+      "message": "{value} supera el máximo permitido ({maximum})."
+    },
+    "unsupported_flow_unit": {
+      "message": "El control del límite de cierre por caudal solo está habilitado para el modo verificado en metros cúbicos."
+    },
+    "service_entry_not_found": {
+      "message": "No existe una entrada de configuración de Runxin Local con id {entry_id}."
+    },
+    "service_entry_not_loaded": {
+      "message": "La entrada de configuración de Runxin Local seleccionada no está cargada."
+    },
+    "service_fields_not_writable": {
+      "message": "Estos campos no están permitidos por la política segura de escritura: {fields}."
+    },
+    "service_field_invalid_value": {
+      "message": "El campo {field} tiene un valor no válido: {value}."
+    },
+    "service_field_out_of_range": {
+      "message": "El valor {value} del campo {field} queda fuera del rango permitido {minimum}–{maximum}."
+    },
+    "service_write_failed": {
+      "message": "No se ha podido confirmar la escritura F79D: {error}"
+    },
+    "service_phase_failed": {
+      "message": "No se ha podido confirmar el cambio de fase de regeneración: {error}"
+    },
+    "diagnostic_read_only": {
+      "message": "Las entradas de diagnóstico no pueden enviar órdenes de configuración o regeneración."
+    }
   }
 }

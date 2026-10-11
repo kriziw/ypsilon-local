@@ -77,6 +77,8 @@ def inner_frame(frame: bytes) -> bytes:
     if start < 0 or start + 3 > len(frame):
         raise RunxinProtocolError("missing DF FD")
     length = frame[start + 2]
+    if length < 6:
+        raise RunxinProtocolError("inner frame too short")
     inner = frame[start:start + length]
     if len(inner) != length:
         raise RunxinProtocolError("truncated inner frame")

@@ -34,7 +34,8 @@ RAW_DIAGNOSTICS_DISABLED_BY_DEFAULT = {
 RECOVERED_ENUMS = {
     "language_code": {
         "field": 2,
-        "states": {"chinese", "english", "spanish", "french", "russian", "italian", "german", "polish"},
+        # Reference labels plus the confirmed model-1 controller language.
+        "states": {"chinese", "english", "spanish", "french", "russian", "italian", "german", "polish", "dutch"},
     },
     "device_time_scheme": {"field": 3, "states": {"12_hour", "24_hour"}},
     "output_relay_mode": {"field": 24, "states": {"b_01", "b_02"}},

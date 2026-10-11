@@ -33,6 +33,17 @@ body:
     validations:
       required: true
   - type: textarea
+    id: diagnostic_report
+    attributes:
+      label: Read-only compatibility report
+      description: Runxin Local 2.8.0+ can prepare this inside Home Assistant even for unlisted models or authentication failures. Add the integration, choose the read-only report, save the diagnostic entry, and attach its downloaded diagnostics JSON here. Partial reports are useful. No Python setup, model edits, new writes or regeneration are needed.
+      placeholder: Attach the diagnostics JSON, or describe the step/error if collection was not possible.
+  - type: textarea
+    id: comparison
+    attributes:
+      label: App or controller comparison (optional)
+      description: A few readings/photos with units help confirm resin volume, hardness, flow cutoff, capacity and programme times. Remove identifiers. Do not change settings just to take screenshots.
+  - type: textarea
     id: evidence
     attributes:
       label: Sanitized evidence

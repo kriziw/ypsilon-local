@@ -13,7 +13,11 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import format_mac
 
 from .api import YpsilonLocalClient
-from .const import DOMAIN
+from .const import (
+    DOMAIN, CONF_DIAGNOSTIC_ONLY, CONF_DIAGNOSTIC_REPORT_ID,
+    CONF_MODEL1_TEST_WRITES, CONF_MODEL1_TEST_REGENERATION,
+)
+from .diagnostic_report import DiagnosticReport, report_store
 from .coordinator import YpsilonDataUpdateCoordinator
 from .services import async_setup_services
 
@@ -26,8 +30,9 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.TIME,
 ]
+READ_ONLY_PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
-type YpsilonConfigEntry = ConfigEntry[YpsilonDataUpdateCoordinator]
+type YpsilonConfigEntry = ConfigEntry[YpsilonDataUpdateCoordinator | DiagnosticReport]
 
 
 @dataclass
@@ -36,6 +41,7 @@ class YpsilonStore:
 
     client: YpsilonLocalClient
     field52_cache: dict[str, Any] = field(default_factory=dict)
+    write_options: tuple[bool, bool] = (False, False)
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -48,12 +54,26 @@ async def _get_store(hass: HomeAssistant, entry: ConfigEntry) -> YpsilonStore:
     domain_store: dict[str, YpsilonStore] = hass.data.setdefault(DOMAIN, {})
     store = domain_store.get(entry.entry_id)
     host = entry.data[CONF_HOST]
+    write_options = (
+        entry.options.get(CONF_MODEL1_TEST_WRITES) is True,
+        entry.options.get(CONF_MODEL1_TEST_WRITES) is True
+        and entry.options.get(CONF_MODEL1_TEST_REGENERATION) is True,
+    )
+
+    def new_client() -> YpsilonLocalClient:
+        return YpsilonLocalClient(
+            host, model1_test_writes=write_options[0],
+            model1_test_regeneration=write_options[1],
+        )
+
     if store is None:
-        store = YpsilonStore(client=YpsilonLocalClient(host))
+        store = YpsilonStore(client=new_client(), write_options=write_options)
         domain_store[entry.entry_id] = store
-    elif store.client.host != host:
+    elif store.client.host != host or store.write_options != write_options:
+        await store.client.revoke_writes()
         await store.client.close()
-        store.client = YpsilonLocalClient(host)
+        store.client = new_client()
+        store.write_options = write_options
     return store
 
 
@@ -199,6 +219,13 @@ def _enable_wash_start_sensor_if_integration_disabled(
 
 async def async_setup_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> bool:
     """Set up Ypsilon Local from a config entry."""
+    if entry.data.get(CONF_DIAGNOSTIC_ONLY):
+        # Reloads/restarts only load the saved report. Never create a normal
+        # client/coordinator: its first refresh may automatically set the clock.
+        report_id = entry.data.get(CONF_DIAGNOSTIC_REPORT_ID)
+        report = await report_store(hass, report_id).async_load() if report_id else None
+        entry.runtime_data = DiagnosticReport(report)
+        return True
     store = await _get_store(hass, entry)
 
     coordinator = YpsilonDataUpdateCoordinator(
@@ -209,18 +236,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> b
 
     _cleanup_legacy_entity_registry_entries(hass, entry)
     _enable_wash_start_sensor_if_integration_disabled(hass, entry)
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    coordinator.platforms = READ_ONLY_PLATFORMS if coordinator.read_only else PLATFORMS
+    await hass.config_entries.async_forward_entry_setups(entry, coordinator.platforms)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> bool:
     """Unload a config entry, keeping the session and cache warm."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if entry.data.get(CONF_DIAGNOSTIC_ONLY):
+        return True
+    return await hass.config_entries.async_unload_platforms(entry, entry.runtime_data.platforms)
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Close the session and drop the cache when the entry is deleted."""
+    if entry.data.get(CONF_DIAGNOSTIC_ONLY):
+        report_id = entry.data.get(CONF_DIAGNOSTIC_REPORT_ID)
+        if report_id:
+            await report_store(hass, report_id).async_remove()
+        return
     store: YpsilonStore | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if store is not None:
         await store.client.close()

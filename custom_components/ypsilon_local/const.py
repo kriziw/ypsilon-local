@@ -4,6 +4,12 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "ypsilon_local"
+CONF_DIAGNOSTIC_ONLY: Final = "diagnostic_only"
+CONF_DIAGNOSTIC_REPORT_ID: Final = "diagnostic_report_id"
+CONF_CONTROLLER_MODEL: Final = "controller_model"
+CONF_MODEL1_TEST_WRITES: Final = "model1_test_writes"
+CONF_MODEL1_TEST_REGENERATION: Final = "model1_test_regeneration"
+REPOSITORY_URL: Final = "https://github.com/Danirv/runxin-local"
 
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 DEFAULT_SCAN_INTERVAL: Final = 60

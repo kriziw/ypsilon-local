@@ -1,0 +1,4 @@
+# Earlier reported HA release, not a declared minimum supported version.
+-r requirements-test-offline.txt
+homeassistant==2026.9.3
+pytest-asyncio==1.4.0

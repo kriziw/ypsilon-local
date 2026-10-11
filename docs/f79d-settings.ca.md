@@ -13,6 +13,21 @@ Aquest document recull els ajustos recuperats de la pantalla avançada de l'anti
 
 Les claus d'estat estables de Home Assistant no utilitzen text traduït. El codi cru original es conserva a l'atribut `raw_code` de l'entitat.
 
+## Evidència de l’idioma del controlador (2.9.3)
+
+La fila anterior és la **taula DeviceLanguage de referència**, no un mapatge universal dels controladors locals. La [definició de l’API del fabricant](https://api.waterdevice.net/api/abp/api-definition?includeTypes=true) associa `DeviceProtocolDataDto.Language` amb `Devices.Protocols.DeviceLanguage`; l’idioma del compte/app utilitza altres enums (`Identity.LanguageType` / `LanguageVersion`). El frontend examinat vincula els selectors de dispositiu i de compte per separat. Una coincidència de codis no demostra que puguem substituir una taula per l’altra.
+
+| Model | Codi del camp 2 | Referència | Idioma confirmat a la pantalla |
+|---|---|---|---|
+| 1, issue #17 | 7 | Polonès | Neerlandès |
+| 9, Ypsilon G6 del projecte | 3 | Francès | Castellà |
+
+La [resposta de la issue #17](https://github.com/Danirv/runxin-local/issues/17#issuecomment-6096161743) confirma neerlandès. Els diagnòstics del G6 indiquen model 9/codi 3 i els menús físics són en castellà. `device_language_keys()` aplica només aquestes correspondències, amb opcions enum traduïdes i `raw_code` conservat. Els models 12/14 i els altres codis mantenen la referència. Una lectura absent continua unknown i un codi desconegut es mostra en decimal. No s’exposa escriptura d’idioma.
+
+No s’ha demostrat la causa de la discrepància local/referència. El firmware BroadLink 62016 és el del mòdul Wi-Fi, no demostra que dues vàlvules comparteixin firmware ni taula d’idiomes.
+
+El sensor d’idioma també informa `controller_model` i `interpretation` (`controller_display_confirmed` o `reference_device_language_enum`) per distingir etiquetes observades de les de referència.
+
 ## Camps numèrics recuperats de la mateixa UI
 
 | Camp | Nom del protocol | Rang WaterDevice | Representació HA |
@@ -38,4 +53,4 @@ Aquests rangs de la UI són independents de la política d'evidència d'escriptu
 
 ## Font de l'evidència
 
-Els mapatges d'enums i rangs de UI provenen de la configuració i dels mòduls recuperats del JavaScript de l'antiga WaterDevice. Per a l'ordre de bytes del camp 7 preval l'evidència física del G6 quan entra en conflicte amb la interpretació del còdec antic. `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` i `scripts/audit.py` ho protegeixen contra regressions; les traduccions continuen completes en anglès, castellà i català.
+Els mapatges d’enums de referència i rangs de UI provenen de la configuració i dels mòduls recuperats del JavaScript de l'antiga WaterDevice. Per a l'ordre de bytes del camp 7 preval l'evidència física del G6 quan entra en conflicte amb la interpretació del còdec antic. `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` i `scripts/audit.py` ho protegeixen contra regressions; les traduccions continuen completes en anglès, castellà i català.

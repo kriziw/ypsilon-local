@@ -37,7 +37,7 @@ The transport returns the raw Runxin response. It never decodes F79D fields.
 The transport keeps one authenticated BroadLink session and serializes
 transactions. For idempotent reads:
 
-- `-1` / `-7`: one fresh authentication/session attempt is allowed;
+- outer response `-1` / `-7` after authentication: one fresh authentication/session attempt is allowed;
 - `-5`: empirically transient on the tested hardware; bounded short jittered
   retries are allowed;
 - the authentication budget and transient retry budget are independent.
@@ -66,6 +66,14 @@ transaction starts from a clean authentication state.
 The transport exposes counters for transient read retries, re-authentication
 attempts, and BroadLink firmware version when readable. These are integration
 diagnostics, not protocol state.
+
+Discovery/authentication failures also retain the last transport stage, device
+type, advertised lock and exception type/code. The discovery lock bit does not
+block an authentication attempt. Initial handshake rejection is classified
+separately from post-authentication outer errors and is not retried automatically.
+New debug messages omit identifiers, keys, packet bytes and exception text.
+See [connection troubleshooting](troubleshooting.md) for setup warnings, HA debug
+logging and the standalone report; diagnostics do not prove the cause of a lock.
 
 ## Replacing BroadLink
 

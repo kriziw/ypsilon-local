@@ -55,7 +55,11 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data
-    async_add_entities(YpsilonTime(coordinator, entry, desc) for desc in TIMES)
+    if coordinator.read_only:
+        return
+    allowed = coordinator.allowed_write_fields
+    async_add_entities(YpsilonTime(coordinator, entry, desc) for desc in TIMES
+                       if desc.field_id in allowed)
 
 
 class YpsilonTime(YpsilonEntity, TimeEntity):

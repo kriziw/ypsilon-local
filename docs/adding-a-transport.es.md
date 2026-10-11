@@ -29,8 +29,9 @@ from runxin.client import F79DClient
 client = F79DClient(MyTransport(...))
 identity = client.read_identity()
 state = client.read_state()
-client.write_fields({43: 50})
 ```
+
+`F79DClient` es una herramienta de protocolo y no impone los permisos por modelo de la integración; el adaptador HA añade esos bloqueos. Un consumidor independiente debe demostrar compatibilidad de modelo/rangos y lectura física posterior antes de escribir. El ejemplo anterior solo lee.
 
 Fuera de este repositorio, copia/vendoriza el paquete puro `runxin/` o úsalo
 desde un checkout del código. No hagas que una integración custom de Home

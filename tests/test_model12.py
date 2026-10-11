@@ -56,7 +56,7 @@ def test_real_state_frame_decodes_with_the_f79d_map() -> None:
 
 
 def test_supported_models() -> None:
-    assert models.SUPPORTED_DEVICE_MODELS == frozenset({9, 12})
+    assert models.SUPPORTED_DEVICE_MODELS == frozenset({1, 9, 12, 14})
     assert models.is_supported_model(9)
     assert models.is_supported_model(12)
     assert not models.is_supported_model(10)
@@ -79,3 +79,33 @@ def test_model_12_settings_use_the_same_write_encodings() -> None:
     assert f79d.encode_field(7, 200) == [7, 0x00, 0xC8]
     assert f79d.encode_field(43, 23) == [43, 23, 0]
     assert f79d.encode_field(10, (0, 0)) == [10, 0, 0]
+
+
+def test_support_evidence_is_scoped_to_the_physical_model() -> None:
+    g6 = models.model_support_details(9)
+    midnight = models.model_support_details(12)
+    assert g6["support_level"] == "reference"
+    assert g6["hardware_verified_write_fields"] == [4, 6, 7, 10, 43, 47]
+    assert g6["pending_write_fields"] == [34]
+    assert midnight["support_level"] == "alpha"
+    assert midnight["tested_hardware"] == "Euro-Clear Midnight 25 (ECOPRO+ head)"
+    assert midnight["hardware_verified_write_fields"] == [4, 6, 10, 43]
+    assert midnight["pending_write_fields"] == [7, 34, 47]
+    assert models.model_support_details(10) is None
+    assert models.model_support_details(None) is None
+    # A consumer cannot mutate the declarative evidence through its JSON lists.
+    midnight["hardware_verified_write_fields"].append(7)
+    assert models.model_support_details(12)["hardware_verified_write_fields"] == [4, 6, 10, 43]
+
+
+def test_resin_wire_bytes_are_preserved_without_guessing_a_new_codec() -> None:
+    state = f79d.decode_frame(STATE_FRAME)
+    assert state["_raw_resinVolumeBytes"] == (0xFA, 0x00)
+    assert state["resinVolume"] == 250
+    assert models.resin_volume_litres(state["resinVolume"], 12) == 25.0
+    # Synthetic input only. A nonzero second byte is retained for investigation,
+    # not silently reinterpreted as a physically verified uint16 resin volume.
+    synthetic = f79d.decode_tlvs({1: (12, 0), 26: (0x2C, 0x01)})
+    assert synthetic["_raw_resinVolumeBytes"] == (0x2C, 0x01)
+    assert synthetic["resinVolume"] == 0x2C
+    assert "_raw_resinVolumeBytes" not in f79d.decode_tlvs({1: (12, 0)})

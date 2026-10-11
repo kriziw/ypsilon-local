@@ -6,14 +6,20 @@ Las contribuciones son bienvenidas. El proyecto prioriza control local fiable, r
 
 ## Antes de abrir un pull request
 
-1. Ejecuta `python scripts/audit.py`.
+1. Instala `requirements-test-offline.txt` en un entorno Python aislado y ejecuta `python -m pytest -q`, `python scripts/audit.py` y `python scripts/field_surface_audit.py`.
 2. Ejecuta `python scripts/publication_check.py` en un clon público configurado.
-3. Ejecuta `python -m compileall -q custom_components/ypsilon_local scripts`.
+3. Ejecuta `python -m compileall -q custom_components/ypsilon_local scripts tests`.
 4. Mantén los textos visibles para el usuario en los archivos de traducción (`en`, `es`, `ca`).
 5. Prefiere cambios pequeños y revisables y conserva los unique ids de entidades/config entries salvo que exista una migración.
 6. En escrituras, distingue transporte del comando, ACK de protocolo y estado físico confirmado.
 
 ## Límites de arquitectura
+
+La CI principal mantiene ligeras las pruebas de protocolo. Para probar config
+flow, entidades y controles con clases reales de Home Assistant, usa Python
+3.14, instala `requirements-test-ha.txt` y ejecuta
+`python -m pytest -q`.
+Estas pruebas simulan la E/S del dispositivo y no establecen evidencia física.
 
 Lee [`docs/architecture.es.md`](docs/architecture.es.md) antes de trabajar con el protocolo.
 
@@ -23,6 +29,12 @@ Lee [`docs/architecture.es.md`](docs/architecture.es.md) antes de trabajar con e
 - IDs de campo, codecs y evidencia pertenecen al perfil de dispositivo.
 - Home Assistant decide qué escrituras conocidas son seguras de exponer.
 - `protocol.py` es una fachada de compatibilidad, no el lugar para lógica nueva.
+
+El trabajo nativo ejecuta toda la suite con HA 2026.9.4; otro usa `requirements-test-ha-baseline.txt` con HA 2026.9.3. Son versiones probadas con E/S simulada, no una versión mínima declarada.
+
+Las revisiones del código de las acciones están fijadas, pero HACS/hassfest aún utilizan etiquetas de contenedores que pueden cambiar. Esto no fija toda la cadena de herramientas. Las comprobaciones de imports son estáticas; no aíslan el código durante la ejecución.
+
+Para un modelo compatible nuevo, reutiliza el mapa compartido, documenta la incertidumbre de unidades/aplicabilidad y empieza con permisos de escritura vacíos. Las pruebas Alpha deben cubrir bloqueos de reloj, servicios y adaptador, y conservar identidades y conversiones del G6/modelo 12. Una familia de protocolo distinta necesita evidencia y perfil propios. Consulta la [matriz de soporte](docs/model-support.md) y la [guía de verificación física](docs/hardware-verification.es.md).
 
 ## Investigación del protocolo y datos de prueba
 

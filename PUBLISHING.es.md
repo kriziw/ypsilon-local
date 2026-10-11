@@ -1,15 +1,17 @@
 [English](PUBLISHING.md) | [Español](PUBLISHING.es.md) | [Català](PUBLISHING.ca.md)
 
-# Publicar Ypsilon en GitHub y HACS
+**2.9.x** utiliza una etiqueta de release estable. Alpha es metadato de soporte por modelo (1/12/14), no un requisito de prerelease de la integración. Una versión normal actualiza el canal estable.
 
-El árbol de código está preparado para el repositorio público `Danirv/ypsilon-local` y su distribución mediante HACS.
+# Publicar Runxin Local en GitHub y HACS
+
+El árbol de código está preparado para el repositorio público `Danirv/runxin-local` y su distribución mediante HACS.
 
 ## 1. Metadatos del repositorio
 
 En un clon/plantilla nuevo, configura el propietario una sola vez:
 
 ```bash
-python scripts/configure_repository.py Danirv --repo ypsilon-local
+python scripts/configure_repository.py Danirv --repo runxin-local
 ```
 
 Después verifica:
@@ -41,11 +43,17 @@ El workflow web lee la versión de `custom_components/ypsilon_local/manifest.jso
 
 Un tag subido manualmente activa el job de tags, que aplica la misma validación. Un tag creado por el propio workflow con `GITHUB_TOKEN` no necesita un segundo workflow: el job web finaliza la release después de validar el tag.
 
+### Prereleases y mantenimiento
+
+Una versión con `-` (por ejemplo `2.9.0-alpha.1`) se publica automáticamente con `--prerelease --latest=false`; se conserva la selección de la última estable. Verifica el flag y el ZIP después de publicar. El soporte/evidencia por modelo es independiente de la etiqueta de release: Alpha no desactiva controles por sí solo.
+
+Los cambios de mantenimiento pendientes necesitan una **versión nueva antes de publicar**. No reutilices un tag publicado para distribuir código posterior de main. Ejecuta la suite nativa completa con `requirements-test-ha.txt` y `requirements-test-ha-baseline.txt` en entornos separados; el trabajo de release ejecuta la suite offline ligera.
+
 ### Alternativa con Git
 
 ```bash
 VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
-git tag -a "v${VERSION}" -m "Ypsilon ${VERSION}"
+git tag -a "v${VERSION}" -m "Runxin Local ${VERSION}"
 git push origin "v${VERSION}"
 ```
 

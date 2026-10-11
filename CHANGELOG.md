@@ -2,28 +2,114 @@
 
 All notable changes to this project are documented here.
 
-## [2.8.0] - 2026-10-11
+## [2.10.0] - 2026-10-11
 
 ### Changed
-- **Migrated to the `python-broadlink` distribution, pinned at `1.0.6`.** Home Assistant Core 2026.10 moved its own BroadLink integration to the same distribution. Both `broadlink` and `python-broadlink` unpack into the same `site-packages/broadlink/` module directory, so a custom integration requiring the old `broadlink==0.19.0` had its requirement installed over the top of core's copy, replacing `exceptions.py` with a version that has no `EndpointClosedError`. Core's BroadLink integration then failed to import and every BroadLink device in the installation disappeared, including unrelated thermostats. Home Assistant only compares distribution names when checking requirements, so `python-broadlink==1.0.6` still counted as satisfied and was never reinstalled. See home-assistant/core#184800.
-- The transport, F79D client and `YpsilonLocalClient` are now **asynchronous**. `python-broadlink` 1.0 made `hello`, `auth`, `get_fwversion` and `send_packet` coroutines with no synchronous compatibility layer; `decrypt` stayed synchronous. The seven `async_add_executor_job` hops in `__init__.py`, `coordinator.py` and `config_flow.py` are gone and the integration awaits the library directly. `threading.Lock` became `asyncio.Lock` in all three layers.
-- Session teardown uses `await device.aclose()`. 1.0 owns the UDP endpoint itself and no longer exposes a `sock` attribute.
-- `broadlink.hello()` raises `NetworkTimeoutError` instead of returning `None`, so the unreachable-device case is now translated from that exception.
+- **Moved to the `python-broadlink` distribution, pinned at `1.0.6`.** Home Assistant Core 2026.10 moved its own BroadLink integration to the same distribution. Both `broadlink` and `python-broadlink` unpack into the same `site-packages/broadlink/` module directory, so the previous `broadlink==0.19.0` requirement was installed over the top of core's copy and replaced `exceptions.py` with a version lacking `EndpointClosedError`. Core's BroadLink integration then failed to import and every BroadLink device in the installation lost its entities, including unrelated Hysen thermostats. Home Assistant compares only distribution names when checking requirements, so `python-broadlink==1.0.6` still counted as satisfied and was never reinstalled; recovery needs `ha core rebuild` or a core image replacement, not a restart. See home-assistant/core#184800.
+- The transport, the F79D client, `YpsilonLocalClient` and the compatibility collector are now **asynchronous**. `python-broadlink` 1.0 made `hello`, `auth`, `get_fwversion` and `send_packet` coroutines with no synchronous compatibility layer; `decrypt` stayed synchronous. The eleven `async_add_executor_job` hops in `__init__.py`, `coordinator.py` and `config_flow.py` are gone and the integration awaits the library directly. `threading.Lock` became `asyncio.Lock` in the transport, the client and the adapter.
+- Session teardown uses `await device.aclose()`. 1.0 owns the UDP endpoint and no longer exposes a `sock` attribute, in the transport and in the collector's teardown.
+- `broadlink.hello()` raises `NetworkTimeoutError` instead of returning `None`, so the unreachable-device case is translated from that exception and the unreachable `if device is None` guards are removed.
+- The compatibility collector's dependency gate now requires the `python-broadlink` 1.x line instead of exactly `broadlink==0.19.0`; its probe-error reason changed from `broadlink_0_19_0_required` to `python_broadlink_1_x_required`. The collector keeps its instance override of `send_packet` and its header, counter, device-type and MAC validation: `Device.count`, `Device.devtype` and `Device.mac` are unchanged in 1.0 and `send_packet` is still overridable.
+- `requirements-test-offline.txt` and the documented dependency in `docs/broadlink-bl3372.md` and `docs/troubleshooting.md` follow the new pin in all three languages.
 
 ### Added
-- A read transaction that fails with `ConnectionClosedError` - including `EndpointClosedError`, new in `python-broadlink` 1.0.2 - now spends the existing session budget on one fresh session instead of failing outright. 1.0 keeps one persistent UDP endpoint per device, so a mid-request close is a new and recoverable failure mode. The write path deliberately does **not** retry it: a closed endpoint after submission is exactly the ambiguous case the write-once rule exists for.
-- Regression tests for both halves of that asymmetry.
+- A read transaction failing with `ConnectionClosedError` - including `EndpointClosedError`, new in `python-broadlink` 1.0.2 - now spends the existing session budget on one fresh session instead of failing outright. 1.0 keeps one persistent UDP endpoint per device, so a mid-request close is a new and recoverable failure mode. The write path deliberately does **not** retry it: a closed endpoint after submission is exactly the ambiguous case the write-once rule exists for.
 
 ### Notes
-- `python-broadlink` 1.0 requires **Python 3.13 or newer**. CI already pinned 3.13.
+- `python-broadlink` 1.0 requires **Python 3.13 or newer**. The offline CI job already pinned 3.13 and the Home Assistant jobs 3.14.
+- `python-broadlink` is `DAB-LABS/python-broadlink`, a maintained fork of `mjg59/python-broadlink`; the import name remains `broadlink`.
 - The `runxin/` codec is unchanged and still imports neither `homeassistant` nor `broadlink`. Only the transport contract became awaitable.
-- No wire-format change. Field encodings, the write-once rule and strict post-write read-back reconciliation all behave exactly as in 2.7.0.
+- No wire-format change. Field encodings, per-model write permissions, the write-once rule and strict post-write read-back reconciliation all behave as in 2.9.3.
+- The `ValueError` guard around authentication was written for a 0.19.0 defect and is retained unverified against 1.0.x, where it may no longer be reachable.
+
+## [2.9.3] - 2026-10-10
+
+- Correct only physically confirmed field-2 language labels: model 1/code 7 is Dutch and reference G6 model 9/code 3 is Spanish. Retain the reference enum for other model/code pairs, raw codes, disabled-by-default diagnostic entities and existing unique IDs. Add Dutch translations and model-aware enum options.
+- Enable model-1 Device clock and manual Sync clock as ordinary validated controls, without experimental settings. Keep all reference sensor identities, default-off experimental fields 6/10/43/47, separate regeneration opt-in and blocked automatic correction. Update setup/options explanations and cached permission diagnostics.
+- Record issue #17's two manual clock writes and restoration through manual clock sync as contributor-verified field-4 evidence for model 1. Other optional settings and regeneration start remain pending; only manual field-4 clock controls are enabled by default, with explicit opt-ins for the remaining tests and blocked automatic correction.
+- Clarify the distinction between field-26 resin and fields 41–42 treatment capacity. Model-1 raw resin 240 and treatment-capacity reference 15 remain unscaled without assumed units; the nominal 24 L unit alone does not confirm the configured resin conversion. Update English/Catalan/Spanish evidence and comparison guides.
+- Add per-model language and partial-write-evidence regressions. Preserve all wire codecs, queries, G6/Midnight controls, resin conversions, domain/config entries and model support levels (1/12 Alpha, 14 Beta).
+
+## [2.9.2] - 2026-10-09
+
+- Fix model-14/F136 resin volume by reading both field-26 bytes as U16 little-endian tenths of a litre. Issue #22's `[44, 1]` now displays 30.0 L instead of 4.4 L, matching the controller photo. Preserve original byte pairs and reference G6/model-12 decoding.
+- Promote model 14 from Alpha to Beta and mark its resin conversion confirmed on the reported BL3372 0x520F / firmware 62016 unit. Record app-matched readings for 4/6/7/10/43/47 separately from contributor-verified writes to 4/6/10/43; writes to 7/47 and mechanical actions on 34 remain pending.
+- Apply the model-specific read override to partial reads after identity discovery without adding device queries, writes or controls. Add regression coverage for the reported bytes, Home Assistant sensor/diagnostics and existing model behavior.
+- Update English/Catalan/Spanish support, protocol and hardware-evidence documentation. Domain, config entries, entity IDs, write permissions and model-1/model-12 Alpha status remain unchanged.
+
+## [2.9.1] - 2026-10-08
+
+- Add explicit, default-off model-1 Alpha options for manual tests of clock (4), continuous-flow time (6), regeneration schedule (10), added salt (43) and hardness (47). All model-1 writes remain hardware-unverified; existing readings, raw bytes, unconfirmed units and disabled provisional statistics are retained.
+- Add a separate default-off regeneration-start opt-in requiring the settings test mode. Keep the fresh service/vacation checks, single command and phase confirmation; block direct phase advancement, field 7, vacation writes and automatic clock correction.
+- Apply opted-in permissions to entities, coordinator, administrator services and adapter. Revoke and replace sessions when test permissions change, preserving the field-52 cache and entity identities. Diagnostics distinguish default model policy from effective test permissions.
+- Add EN/CA/ES options and validation instructions. G6 and Midnight control sets, codecs, conversions and identities are retained.
+
+## [2.9.0] - 2026-10-08
+
+- Publish a normal stable integration version; Alpha status remains scoped to models 1, 12 and 14.
+- Add Euro-Clear Midnight 25 Runxin F136 / controller model 14 based on issue #22: reported working F79D reads and verified local writes to 4/6/10/43, with 7/34/47 pending. Reuse Midnight controls and strict fresh read-back without enabling vacation writes.
+- Adopt Midnight resin scale 0.1 for model 14 from the reported shared map; expose its pending direct comparison in diagnostics and resin-sensor attributes. Preserve raw resin bytes.
+- Identify model 12 as F105 in device metadata while retaining its entry title, unique IDs, conversions and controls.
+
+- Add cached effective write-policy diagnostics that distinguish controller evidence, configured read-only restrictions and adapter session restrictions, without device I/O.
+- Enforce recursive protocol/transport import boundaries and immutable action references in the offline audit.
+- Pin workflow action source revisions, pin offline test tools and run the full suite against HA 2026.9.3 and 2026.9.4. Validator container images still follow upstream tags.
+- Clarify shared protocol profiles, per-model permissions and standalone transport examples; align contribution/publishing guidance in English, Catalan and Spanish. No new write commands, conversions or domain migration.
+
+## [2.9.0-alpha.1] - 2026-10-07
+
+- Add controller model 1 (F150 API name) as read-only Alpha, based on issue #17's published 52-field report; app conversions remain provisional.
+- Add explicit per-model write permissions, defaulting to no writes. Enforce read-only policy in setup, coordinator, services and composition adapter, including automatic clock correction. Preserve G6/model-12 control fields and conversions.
+- Add read-only equivalents for normally writable settings, raw field-pair diagnostics, unscaled resin/per-cycle readings without assumed units and no provisional long-term statistics.
+- Add English/Catalan/Spanish pilot guides and multi-model architecture/policy documentation; document issue #17's app-pairing workaround as one reported case.
+- Close discovery sockets on failed authentication, reject too-short inner frames as protocol errors and require matching query/write response opcodes.
+- Mark hyphenated release versions as prereleases without replacing stable latest. The ypsilon_local domain and existing identities stay unchanged; PR #24 migration remains separate.
+
+## [2.8.0] - 2026-10-07
+
+- Rename the public project and visible integration to **Runxin Local**, with repository `Danirv/runxin-local`. Keep the `ypsilon_local` domain, folder, services and existing unique IDs.
+- Offer an opt-in, bounded read-only compatibility report inside Home Assistant for unlisted controllers and setup failures. No external Python environment or model-registry edit is required.
+- Preserve raw bytes, unmapped numeric codes, missing fields and timestamps; identify controller enum names without extending supported models. No model-specific resin scale is applied to research reports.
+- Store reports locally in diagnostic-only entries with no entities, polling, clock correction or write methods. Reload/download performs no new scan; deletion removes the saved report. Advanced write services reject these entries.
+- Add prepared issue summaries, instructions and compatibility-report template fields. Existing G6/model-12 polling, control encodings and per-model scaling are retained.
+
+## [2.7.2] - 2026-10-05
+
+### Fixed
+- Show unmapped enum codes as their decimal device value (for example relay `2` and work pattern `255`), with valid Home Assistant enum options and the existing `raw_code` attribute. Known state keys/translations are unchanged; missing readings still report unknown.
+- Guard the regeneration button with a fresh service/vacation read under the write lock, and reject overlapping regeneration requests. The existing field-34 value-1 command and single-write/read-back reconciliation are retained. Explicit advanced phase control keeps its existing policy.
+- Confirm the ticking device clock across a one-minute rollover, including midnight, only within 60 seconds of sending the write and with fresh pre-write evidence that the next-minute value changed. An unchanged next-minute value never confirms an ignored or ambiguously delivered write. Regeneration schedules and other settings still require exact read-back. Automatic sync samples the target clock after acquiring the write lock.
+
+### Added
+- Real Home Assistant regressions for enum state/options transitions, G6 and model-12 regeneration guards, ambiguous/ignored writes and clock reconciliation.
+- Model-12 documentation of the manufacturer hardness convention and the limits of the enum investigation. No reliable field-9/24 mapping for codes 255/2 was found in the consulted manuals; WaterCare shares this project's mapping and is not independent evidence.
+
+### Notes
+- Model 12 remains Alpha with the same pending hardware validations. G6 codecs, units, numeric ranges, command bytes and known enum labels are unchanged. Software tests do not certify physical valve actions.
+
+## [2.7.1] - 2026-10-05
+
+### Added
+- Connection troubleshooting in English, Catalan and Spanish, plus `scripts/debug_connection.py`: one discovery/authentication attempt and an optional firmware read, with a sanitized JSON report and no configuration/mechanical writes.
+- Non-identifying connection debug logs and transport diagnostics for stage, discovered device type, advertised lock and latest error type/code. Failed setup emits a useful warning before a config entry exists.
+- Regression tests for rejected/false authentication, timeouts, successful authentication despite an advertised lock, all setup paths and report/log privacy.
+
+### Fixed
+- Distinguish a rejected local BroadLink handshake from generic connection failures in setup, DHCP confirmation and reconfiguration. Show a separate message when the rejected device also advertises a local-control lock.
+- Handle malformed authentication replies that make BroadLink's AES setup raise `ValueError` as transport failures, without mislabelling them as lock/rejection. The standalone report also captures unexpected library errors without emitting private exception text or a traceback.
+
+### Notes
+- Improves diagnosis of issue #17; it does not claim to fix the physical device's authentication rejection or prove that cloud pairing caused it.
+- Authentication keys/handshake, retry budgets, F79D encodings, commands and model-12 Alpha support remain unchanged. No automatic unlock, reset, provisioning or alternative key path is introduced.
 
 ## [2.7.0] - 2026-10-04
 
 ### Added
-- Support for the **Euro-Clear Midnight** (ECOPRO+ head), which reports Runxin controller model **12** behind the same BroadLink BL3372 (`0x520F`). A full read of fields 1–52 from a real Midnight 25 decodes consistently with the F79D map: clock, hardness, salt, programme times, capacity and volumes all match the controller. The captured frames are kept as regression tests.
+- Experimental / Alpha support for the **Euro-Clear Midnight** (ECOPRO+ head), which reports Runxin controller model **12** behind the same BroadLink BL3372 (`0x520F`). A full read of fields 1–52 from a real Midnight 25 decodes consistently with the F79D map: clock, hardness, salt, programme times, capacity and volumes all match the controller. The captured frames are kept as regression tests.
 - `models.py`: the accepted controller models with their entry title, device-registry model and manufacturer, kept free of Home Assistant imports so they can be unit-tested.
+- Per-model support and hardware-write evidence in diagnostics, without changing control availability or write policy.
+- Both raw field-26 resin bytes retained in state and the resin sensor's attributes, preserving the original decoding/scaling.
+- Home Assistant 2026.9.4 regressions for config flow, entity states/identity, controls and redacted diagnostics, in a separate CI job.
 
 ### Changed
 - Setup and DHCP discovery accept models 9 and 12. The config entry and device are named after the reported model.
@@ -31,7 +117,9 @@ All notable changes to this project are documented here.
 - Enum sensors report an unrecognised controller code as unknown rather than raising, keeping the code in `raw_code`. Model 12 reports output relay mode 2.
 
 ### Notes
-- Model 12 controls use the same field encodings as model 9 and are confirmed by fresh read-back, so a write the controller does not adopt is reported as not confirmed. They are not yet `HARDWARE_WRITE_VERIFIED` for model 12.
+- Alpha is scoped to model 12; existing G6 support is unchanged. No new codec, command sequence, range or device write is introduced by the review follow-up.
+- The observed resin capture `FA 00` validates 25 L on Midnight 25, not the meaning of the second byte or resin values above 25.5 L. Raw bytes remain available for follow-up investigation.
+- Model 12 controls use the same field encodings as model 9. On the Midnight 25, local writes to fields 4 (clock), 6 (continuous-flow limit), 10 (regeneration time) and 43 (salt added) were hardware-verified with the documented baseline → set → fresh read → restore → fresh read sequence, with no side effects on other fields. Fields 7 and 47 and forced regeneration use the same encodings and the existing read-back reconciliation, but are not yet hardware-verified on model 12.
 
 ## [2.6.3] - 2026-09-13
 

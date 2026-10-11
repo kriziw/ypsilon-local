@@ -5,9 +5,9 @@ Runxin request frame and return one raw Runxin response frame.
 
 The contract is asynchronous. `python-broadlink` 1.0 made every
 device-talking method a coroutine with no synchronous compatibility layer,
-so the BroadLink transport cannot be driven from a worker thread any more.
-Keeping the contract async also matches how Home Assistant wants I/O done,
-and let the seven `async_add_executor_job` hops above this layer go away.
+so a BroadLink transport can no longer be driven from a worker thread.
+Keeping the contract awaitable also matches how Home Assistant wants I/O
+done and removes the executor hops above this layer.
 """
 
 from __future__ import annotations

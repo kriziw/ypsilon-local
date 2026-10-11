@@ -1,13 +1,15 @@
-# Publishing Ypsilon on GitHub and HACS
+# Publishing Runxin Local on GitHub and HACS
 
-The source tree is prepared for the public `Danirv/ypsilon-local` repository and HACS distribution.
+Version **2.9.x** uses a normal stable release tag. Alpha is per-model support metadata (models 1/12/14), not a prerelease requirement for the integration. A normal version updates the stable release channel.
+
+The source tree is prepared for the public `Danirv/runxin-local` repository and HACS distribution.
 
 ## 1. Repository metadata
 
 If preparing a fresh clone/template, configure the repository owner once:
 
 ```bash
-python scripts/configure_repository.py Danirv --repo ypsilon-local
+python scripts/configure_repository.py Danirv --repo runxin-local
 ```
 
 Funding can be configured through GitHub Sponsors and/or Ko-fi. Then verify:
@@ -20,11 +22,17 @@ python -m pytest -q
 python -m compileall -q custom_components/ypsilon_local scripts tests
 ```
 
+### Repository rename
+
+Rename `Danirv/ypsilon-local` to `Danirv/runxin-local` in GitHub repository Settings. Keep the old name unused so GitHub's existing redirects remain valid. Update local Git remotes to the new URL. Issues, PRs, stars and release history remain attached to the same repository; do not create a replacement repository or duplicate HACS installation.
+
+The visible manifest/HACS name changes, while `custom_components/ypsilon_local`, domain/service names, unique IDs and the release ZIP's integration folder remain unchanged. Existing HA entries should be retained. Check a normal HACS update and the GitHub redirect after renaming; if an older HACS version still shows the old repository name, refresh its metadata before considering any reinstall.
+
 ## 2. Repository requirements
 
 Recommended description:
 
-> Local Home Assistant integration for Runxin F79D / BroadLink BL3372 water softeners, including ATH/BWT Ypsilon G6.
+> Local Home Assistant integration for Runxin F79D / BroadLink BL3372 water softeners, including ATH/BWT Ypsilon G6 and Euro-Clear Midnight, with read-only compatibility diagnostics for additional models.
 
 Keep Issues enabled and useful topics such as `home-assistant`, `hacs`, `custom-component`, `water-softener`, `runxin`, `broadlink`, and `ypsilon`.
 
@@ -70,13 +78,19 @@ The web workflow reads the version directly from `custom_components/ypsilon_loca
 
 A tag pushed manually is handled by the tag-triggered job, which performs the same validation before creating the release. A tag created by the workflow's own `GITHUB_TOKEN` does not need a second workflow run; the web-release job completes the release itself after validating the tagged source.
 
+### Prereleases and maintenance changes
+
+A version containing `-` (for example `2.9.0-alpha.1`) is published automatically with `--prerelease --latest=false`; the latest stable release remains selected. Verify the prerelease flag and ZIP after publication. Model support/evidence is independent of the release label: an Alpha tag does not itself disable controls.
+
+Unreleased maintenance changes must use a **new version before publishing**. Never rerun publication of an existing tag to distribute newer main code. Run the complete native HA suite using `requirements-test-ha.txt` and `requirements-test-ha-baseline.txt` as separate environments; the release job itself runs the lightweight offline suite.
+
 ### Git CLI alternative
 
 If a local clone is available, the same release can still be started by tagging the exact manifest version:
 
 ```bash
 VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
-git tag -a "v${VERSION}" -m "Ypsilon ${VERSION}"
+git tag -a "v${VERSION}" -m "Runxin Local ${VERSION}"
 git push origin "v${VERSION}"
 ```
 

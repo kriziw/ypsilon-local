@@ -13,7 +13,7 @@ PLACEHOLDER = "__GITHUB_USER__"
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("github_user", help="GitHub username without @")
-    parser.add_argument("--repo", default="ypsilon-local", help="GitHub repository name")
+    parser.add_argument("--repo", default="runxin-local", help="GitHub repository name")
     parser.add_argument("--github-sponsors", metavar="USERNAME", help="Enable GitHub Sponsors in .github/FUNDING.yml")
     parser.add_argument("--ko-fi", metavar="USERNAME", help="Enable Ko-fi in .github/FUNDING.yml")
     args = parser.parse_args()

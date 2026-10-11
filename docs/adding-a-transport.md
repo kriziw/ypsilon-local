@@ -29,8 +29,9 @@ from runxin.client import F79DClient
 client = F79DClient(MyTransport(...))
 identity = client.read_identity()
 state = client.read_state()
-client.write_fields({43: 50})
 ```
+
+`F79DClient` is a wire-level tool: it does not enforce the integration’s model permissions. The HA composition adapter adds those guards. A standalone caller must establish model/range compatibility and physical read-back before using writes; the example above only reads.
 
 When experimenting outside this repository, vendor/copy the pure `runxin/`
 package or use it from a source checkout. Do not create a Home Assistant custom

@@ -17,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import YpsilonEntity
 from .runxin.semantics import SYSTEM_CLOSE_REASON_KEYS
+from .models import controller_model
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -110,6 +111,13 @@ class YpsilonBinarySensor(YpsilonEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         attributes: dict[str, Any] = {}
+        model = controller_model((self.coordinator.data or {}).get("deviceModel"))
+        if model is not None and model.provisional_readings:
+            attributes.update(interpretation="reference_f79d_pending_app_validation", read_only=True)
+            raw = (self.coordinator.data or {}).get("_rawFieldBytes", {})
+            field = self.entity_description.protocol_field
+            if field is not None:
+                attributes["raw_bytes"] = raw.get(int(field))
         if self.entity_description.protocol_field is not None:
             attributes["f79d_protocol_field"] = self.entity_description.protocol_field
         if self.entity_description.key == "communication_problem":

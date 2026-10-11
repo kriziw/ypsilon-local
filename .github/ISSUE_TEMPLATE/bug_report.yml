@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem with the Ypsilon integration.
+description: Report a reproducible problem with the Runxin Local integration.
 title: "[Bug]: "
 labels: [bug]
 body:
@@ -24,7 +24,7 @@ body:
     id: integration_version
     attributes:
       label: Integration version
-      placeholder: 2.3.0
+      placeholder: 2.9.0-alpha.1
     validations:
       required: true
   - type: input

@@ -3,11 +3,6 @@
 Only an awaitable `transact(frame) -> frame` transport is required. The
 transport may be BroadLink, serial, TCP, ESPHome-backed, or a test double.
 
-The contract became asynchronous when `python-broadlink` 1.0 turned every
-device-talking method into a coroutine. Nothing about the F79D codec itself
-changed: this module still only moves bytes, and the `runxin` package still
-imports neither `homeassistant` nor `broadlink`.
-
 Transports may optionally provide `transact_write(frame) -> frame` when writes
 need stricter delivery semantics than reads. This lets a stateful transport
 avoid blindly retransmitting a command after an ambiguous timeout while keeping
@@ -21,6 +16,7 @@ from typing import Any, Protocol
 
 from .errors import RunxinProtocolError
 from .f79d import STATE_FIELDS, build_query, build_write_fields, decode_frame
+from .framing import QUERY_RESPONSE_CODE, WRITE_RESPONSE_CODE, extract_tlvs, inner_frame
 
 
 class TransactionTransport(Protocol):
@@ -34,8 +30,10 @@ class TransactionTransport(Protocol):
 class F79DClient:
     """Read/write F79D fields through an arbitrary transaction transport."""
 
-    def __init__(self, transport: TransactionTransport) -> None:
+    def __init__(self, transport: TransactionTransport, *, capture_raw: bool = False) -> None:
         self.transport = transport
+        self.capture_raw = capture_raw
+        self._device_model: int | None = None
         self._lock = asyncio.Lock()
 
     async def close(self) -> None:
@@ -49,9 +47,18 @@ class F79DClient:
         if callable(invalidate):
             await invalidate()
 
-    async def _decode_response(self, response: bytes) -> dict[str, Any]:
+    async def _decode_response(self, response: bytes, expected_opcode: int) -> dict[str, Any]:
         try:
-            return decode_frame(response)
+            decoded = decode_frame(response, device_model=self._device_model)
+            if inner_frame(response)[3] != expected_opcode:
+                raise RunxinProtocolError("response opcode does not match the request")
+            if "deviceModel" in decoded:
+                self._device_model = decoded["deviceModel"]
+            if self.capture_raw:
+                decoded["_rawFieldBytes"] = {
+                    field: list(pair) for field, pair in extract_tlvs(response).items()
+                }
+            return decoded
         except RunxinProtocolError:
             # A malformed product frame can mean stale framing/session state.
             # Stateful transports may reset themselves; stateless transports
@@ -60,13 +67,19 @@ class F79DClient:
             raise
 
     async def _transaction(self, request: bytes) -> dict[str, Any]:
-        return await self._decode_response(await self.transport.transact(request))
+        return await self._decode_response(
+            await self.transport.transact(request), QUERY_RESPONSE_CODE
+        )
 
     async def _write_transaction(self, request: bytes) -> dict[str, Any]:
         write_transaction = getattr(self.transport, "transact_write", None)
         if callable(write_transaction):
-            return await self._decode_response(await write_transaction(request))
-        return await self._transaction(request)
+            return await self._decode_response(
+                await write_transaction(request), WRITE_RESPONSE_CODE
+            )
+        return await self._decode_response(
+            await self.transport.transact(request), WRITE_RESPONSE_CODE
+        )
 
     async def read_fields(self, fields: list[int]) -> dict[str, Any]:
         """Read an explicit set of F79D field ids."""

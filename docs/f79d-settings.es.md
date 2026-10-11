@@ -13,6 +13,21 @@ Este documento recoge los ajustes recuperados de la pantalla avanzada de la anti
 
 Las claves de estado estables de Home Assistant no utilizan texto traducido. El código bruto original se conserva en el atributo `raw_code` de la entidad.
 
+## Evidencia del idioma del controlador (2.9.3)
+
+La fila anterior es la **tabla DeviceLanguage de referencia**, no un mapa universal de los controladores locales. La [definición de la API del fabricante](https://api.waterdevice.net/api/abp/api-definition?includeTypes=true) asocia `DeviceProtocolDataDto.Language` con `Devices.Protocols.DeviceLanguage`; el idioma de cuenta/app utiliza otros enums (`Identity.LanguageType` / `LanguageVersion`). El frontend examinado vincula los selectores de dispositivo y cuenta por separado. Una coincidencia de códigos no demuestra que se pueda sustituir una tabla por otra.
+
+| Modelo | Código del campo 2 | Referencia | Idioma confirmado en pantalla |
+|---|---|---|---|
+| 1, issue #17 | 7 | Polaco | Neerlandés |
+| 9, Ypsilon G6 del proyecto | 3 | Francés | Español |
+
+La [respuesta de la issue #17](https://github.com/Danirv/runxin-local/issues/17#issuecomment-6096161743) confirma neerlandés. Los diagnósticos del G6 indican modelo 9/código 3 y sus menús físicos están en español. `device_language_keys()` aplica solo esas correspondencias, con opciones enum traducidas y `raw_code` conservado. Los modelos 12/14 y los demás códigos mantienen la referencia. Una lectura ausente sigue unknown y un código desconocido se muestra en decimal. No se expone escritura de idioma.
+
+No se ha demostrado la causa de la discrepancia local/referencia. El firmware BroadLink 62016 es el del módulo Wi-Fi; no demuestra que dos válvulas compartan firmware ni tabla de idiomas.
+
+El sensor de idioma también informa `controller_model` e `interpretation` (`controller_display_confirmed` o `reference_device_language_enum`) para distinguir etiquetas observadas de las de referencia.
+
 ## Campos numéricos recuperados de la misma UI
 
 | Campo | Nombre de protocolo | Rango WaterDevice | Representación HA |
@@ -38,4 +53,4 @@ Estos rangos de la UI son independientes de la política de evidencia de escritu
 
 ## Fuente de la evidencia
 
-Los mapeos de enums y rangos de UI proceden de la configuración y de los módulos recuperados del JavaScript de la antigua WaterDevice. Para el orden de bytes del campo 7 prevalece la evidencia física del G6 cuando entra en conflicto con la interpretación del códec antiguo. `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` y `scripts/audit.py` lo protegen contra regresiones; las traducciones siguen completas en inglés, castellano y catalán.
+Los mapeos de enums de referencia y rangos de UI proceden de la configuración y de los módulos recuperados del JavaScript de la antigua WaterDevice. Para el orden de bytes del campo 7 prevalece la evidencia física del G6 cuando entra en conflicto con la interpretación del códec antiguo. `tests/test_recovered_settings_semantics.py`, `tests/test_f79d.py` y `scripts/audit.py` lo protegen contra regresiones; las traducciones siguen completas en inglés, castellano y catalán.
