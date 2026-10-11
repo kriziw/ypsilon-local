@@ -1,0 +1,90 @@
+name: Release Please
+
+# Maintains a release pull request from Conventional Commit messages on main.
+# Merging that PR bumps the version, rewrites CHANGELOG.md, tags, creates the
+# GitHub Release, and attaches the manual-install ZIP.
+#
+# RELEASES CREATED BY GITHUB_TOKEN DO NOT TRIGGER OTHER WORKFLOWS.
+# That is a deliberate GitHub restriction, and it is why the validation and
+# ZIP-upload steps live in this workflow rather than relying on the existing
+# tag-triggered job in release.yml. It also means release.yml needs no change:
+# its `push: tags: v*` job cannot double-fire on a tag created here.
+#
+# release.yml remains the manual escape hatch. Dispatching it from main still
+# performs a complete self-contained release, which is what to use if this
+# workflow is ever unavailable or a release needs recovering.
+#
+# REQUIRES: Settings -> Actions -> General -> "Allow GitHub Actions to create
+# and approve pull requests". Without it the action fails when opening the PR.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release PR and publish
+    runs-on: ubuntu-latest
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Everything below runs only on the push that merged the release PR.
+
+      - uses: actions/checkout@v7
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        with:
+          # Validate the exact tagged source, not main, so what was released
+          # is what was checked. release.yml makes the same distinction.
+          ref: ${{ steps.release.outputs.tag_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        with:
+          python-version: "3.13"
+
+      - name: Install release-test dependencies
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        run: python -m pip install --disable-pip-version-check pytest python-broadlink==1.0.6
+
+      - name: Validate tagged release source
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        run: |
+          python scripts/publication_check.py
+          python scripts/audit.py
+          python scripts/field_surface_audit.py
+          python -m pytest -q
+          python -m compileall -q custom_components/ypsilon_local scripts tests
+
+      - name: Verify tag matches manifest version
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        shell: bash
+        run: |
+          TAG="${TAG_NAME#v}"
+          VERSION="$(python -c 'import json; print(json.load(open("custom_components/ypsilon_local/manifest.json"))["version"])')"
+          test "$TAG" = "$VERSION" || { echo "Tag $TAG_NAME does not match manifest $VERSION"; exit 1; }
+
+      - name: Build manual-install archive
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: zip -r "ypsilon_local-${TAG_NAME}.zip" custom_components/ypsilon_local -x "*/__pycache__/*" "*.pyc"
+
+      - name: Attach archive to the release
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        # --clobber so a re-run, or a prior release.yml dispatch, is idempotent.
+        run: gh release upload "$TAG_NAME" "ypsilon_local-${TAG_NAME}.zip" --clobber

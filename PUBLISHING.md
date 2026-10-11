@@ -32,7 +32,32 @@ The repository includes HACS validation, hassfest, the offline protocol/architec
 
 ## 3. Publish a GitHub Release from the web
 
-The preferred release path does not require a local Git clone:
+### Automated path (preferred)
+
+`release-please.yml` watches `main` and keeps a release pull request open.
+That PR bumps `manifest.json` and the `info.md` title, and rewrites
+`CHANGELOG.md` from the Conventional Commit subjects since the last release.
+
+1. Review the release pull request. Edit `CHANGELOG.md` in it if the generated
+   entries need the hardware detail this project usually records.
+2. Merge it.
+3. The same workflow then tags `v<version>`, creates the GitHub Release, runs
+   the full publication/audit/field-surface/unit-test/compile suite **against
+   the tagged source**, and attaches the manual-install ZIP.
+
+Versions come from the commit types, so nothing is bumped by hand. See
+`CONTRIBUTING.md` for the convention.
+
+Note that a release created by `GITHUB_TOKEN` does not trigger other
+workflows, which is why that validation and ZIP upload happen inside
+`release-please.yml` rather than in the tag-triggered job below.
+
+### Manual path (recovery)
+
+Still fully supported, and the thing to use if the automated path is
+unavailable or a release needs recovering:
+
+The manual path does not require a local Git clone either:
 
 1. Choose a **new, unused** semantic version. Never reuse a version that already has a GitHub Release, even if `main` contains newer code.
 2. Update `manifest.json`, `CHANGELOG.md` and `info.md` to that same version.
