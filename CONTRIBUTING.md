@@ -15,6 +15,32 @@ interoperability knowledge.
 6. For writes, distinguish command transport, protocol ACK and confirmed
    physical device state.
 
+## Commit messages
+
+Releases are produced by release-please, which reads **Conventional Commit**
+subjects on `main`. A commit that does not parse is simply not mentioned in
+the changelog, and a run of such commits means no release is proposed at all.
+
+Use the type that matches the change:
+
+| Type | Changelog section | Version bump |
+|---|---|---|
+| `feat:` | Added | minor |
+| `fix:` | Fixed | patch |
+| `perf:` / `refactor:` | Changed | patch |
+| `docs:` | Notes | patch |
+| `chore:` / `test:` / `ci:` / `build:` | hidden | none |
+
+A `!` after the type, or a `BREAKING CHANGE:` footer, forces a major bump.
+
+Squash-merge pull requests so the PR title becomes the commit subject, and
+write that title as a Conventional Commit.
+
+Hand-written detail still matters here. The changelog for this project records
+physical evidence - wire bytes, raw values, what the vendor application showed
+- and release-please cannot invent that. Put it in the commit body, or edit
+`CHANGELOG.md` directly in the release pull request before merging it.
+
 ## Architecture boundaries
 
 Read [`docs/architecture.md`](docs/architecture.md) before protocol work.
