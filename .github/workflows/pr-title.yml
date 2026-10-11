@@ -1,0 +1,57 @@
+name: PR title
+
+# release-please derives the next version and the changelog from Conventional
+# Commit subjects on main. A pull request whose title does not conform, merged
+# as a squash, puts a non-conforming subject on main and produces no release -
+# silently, because release-please succeeds and simply opens no pull request.
+#
+# That happened with #4 ("Sync to upstream 2.9.3 and re-apply the
+# python-broadlink migration"), so this fails the pull request instead of
+# letting it reach main.
+#
+# Deliberately no third-party action: the check is a regex, and the repository
+# audit requires every action to be pinned to a full commit SHA. Nothing to
+# pin is simpler than something to keep pinned.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  conventional-title:
+    name: Conventional Commit title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        shell: bash
+        run: |
+          # Types mirror changelog-sections in release-please-config.json.
+          types='feat|fix|perf|refactor|revert|docs|chore|test|ci|build'
+          if [[ "$TITLE" =~ ^($types)(\([a-z0-9._-]+\))?!?:\ .+ ]]; then
+            echo "OK: $TITLE"
+            exit 0
+          fi
+          echo "::error::PR title is not a Conventional Commit: $TITLE"
+          cat <<'MSG'
+
+          release-please reads the squashed commit subject to decide the next
+          version and write the changelog. A title it cannot parse produces no
+          release at all.
+
+          Use one of:
+
+            feat: ...       a new capability          -> minor bump
+            fix: ...        a corrected behaviour     -> patch bump
+            perf: ...       faster, same behaviour    -> patch bump
+            refactor: ...   same behaviour            -> patch bump
+            docs: ...       documentation             -> patch bump
+            chore|test|ci|build: ...                  -> no release
+
+          A scope is optional, e.g. "fix(transport): ...". Append "!" for a
+          breaking change, e.g. "feat!: ...", or add a BREAKING CHANGE footer.
+          MSG
+          exit 1
