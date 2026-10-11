@@ -33,8 +33,16 @@ Use the type that matches the change:
 
 A `!` after the type, or a `BREAKING CHANGE:` footer, forces a major bump.
 
-Squash-merge pull requests so the PR title becomes the commit subject, and
-write that title as a Conventional Commit.
+**Squash-merge pull requests.** The PR title then becomes the commit subject
+on `main`, which is what release-please reads. A merge commit puts the
+*branch's* subjects on `main` instead, and if those do not conform there is no
+release - release-please succeeds and simply opens no pull request, so nothing
+tells you. That is what happened with #4, which shipped as a merge commit
+titled "Sync to upstream 2.9.3 and re-apply the python-broadlink migration"
+and produced no release until one was cut by hand.
+
+`.github/workflows/pr-title.yml` now fails a pull request whose title is not a
+Conventional Commit, so the two halves cannot drift apart again.
 
 Hand-written detail still matters here. The changelog for this project records
 physical evidence - wire bytes, raw values, what the vendor application showed
