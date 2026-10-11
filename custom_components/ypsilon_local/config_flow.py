@@ -65,11 +65,11 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Probe a temporary client and always release its BroadLink socket."""
         client = YpsilonLocalClient(host)
         try:
-            identity = await self.hass.async_add_executor_job(client.read_identity)
+            identity = await client.read_identity()
             mac = identity.get("mac") or client.mac
             return identity, mac
         finally:
-            await self.hass.async_add_executor_job(client.close)
+            await client.close()
 
     async def async_step_dhcp(
         self, discovery_info: DhcpServiceInfo
