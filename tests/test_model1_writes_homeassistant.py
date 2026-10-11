@@ -179,7 +179,9 @@ async def test_disabling_tests_replaces_and_revokes_old_session_without_losing_c
     coordinator, client, entry = context(hass)
     created = []
     def create(host, **kwargs):
-        client = Mock(host=host)
+        client = Mock(host=host, read_state=AsyncMock(), read_identity=AsyncMock(),
+                      write_fields=AsyncMock(), close=AsyncMock(),
+                      revoke_writes=AsyncMock())
         created.append((client, kwargs))
         return client
     monkeypatch.setattr(init_mod, "YpsilonLocalClient", create)

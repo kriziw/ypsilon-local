@@ -161,5 +161,5 @@ def test_response_opcode_must_match_read_or_write_request(reading):
     transport.transact.return_value = transport.transact_write.return_value = response
     client = client_mod.F79DClient(transport)
     with pytest.raises(load('runxin.errors').RunxinProtocolError, match='opcode'):
-        run(client.read_identity()) if reading else client.write_fields({43: 25})
+        run(client.read_identity()) if reading else run(client.write_fields({43: 25}))
     transport.invalidate.assert_awaited_once()

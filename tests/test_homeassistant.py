@@ -79,7 +79,7 @@ async def test_diagnostic_progress_and_saved_report_need_no_manual_environment(h
         assert not cancel.is_set()
         identifier_sink.append(TEST_MAC.replace(":",""))
         return _report(code,status=status)
-    collect_mock=Mock(side_effect=collect)
+    collect_mock=AsyncMock(side_effect=collect)
     monkeypatch.setattr(flow_mod,"probe",collect_mock)
     result=await flow.async_step_user({"host":TEST_HOST,"diagnostic_only":True})
     assert result["type"] is FlowResultType.SHOW_PROGRESS
