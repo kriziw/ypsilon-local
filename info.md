@@ -1,6 +1,21 @@
-# Runxin Local 2.9.3
+# Runxin Local 2.10.0
 
 Local Home Assistant integration for compatible Runxin F79D / BroadLink BL3372 water softeners, tested with ATH/BWT Ypsilon G6 and Euro-Clear Midnight.
+
+## 2.10.0
+
+Moves to the `python-broadlink` distribution (`1.0.6`), the same one Home
+Assistant Core 2026.10 uses for its own BroadLink integration. The previous
+`broadlink==0.19.0` requirement installed itself over the top of core's copy
+of the shared `broadlink` module and broke core's BroadLink integration,
+taking unrelated BroadLink devices such as thermostats down with it.
+
+The transport and the compatibility collector are asynchronous as a result,
+since `python-broadlink` 1.0 is. A read interrupted by a closed endpoint now
+recovers with one fresh session; writes still never retry. No wire-format
+change.
+
+Requires Python 3.13 or newer.
 
 ## 2.9.3
 

@@ -38,7 +38,7 @@ todavía no hay entrada para descargar: utiliza el aviso o el script independien
 
 ## Informe independiente
 
-Desde la raíz del repositorio, en un entorno Python que ya tenga `broadlink==0.19.0`,
+Desde la raíz del repositorio, en un entorno Python que ya tenga `python-broadlink==1.0.6`,
 ejecuta esto sustituyendo `DEVICE_IP` localmente:
 
 ```bash

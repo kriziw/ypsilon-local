@@ -38,7 +38,7 @@ use the setup warning or standalone probe instead.
 
 ## Standalone report
 
-In a Python environment with `broadlink==0.19.0` already installed, run this from
+In a Python environment with `python-broadlink==1.0.6` already installed, run this from
 the repository root, replacing `DEVICE_IP` locally:
 
 ```bash

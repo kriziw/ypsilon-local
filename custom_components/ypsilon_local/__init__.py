@@ -50,7 +50,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     return True
 
 
-def _get_store(hass: HomeAssistant, entry: ConfigEntry) -> YpsilonStore:
+async def _get_store(hass: HomeAssistant, entry: ConfigEntry) -> YpsilonStore:
     domain_store: dict[str, YpsilonStore] = hass.data.setdefault(DOMAIN, {})
     store = domain_store.get(entry.entry_id)
     host = entry.data[CONF_HOST]
@@ -70,8 +70,8 @@ def _get_store(hass: HomeAssistant, entry: ConfigEntry) -> YpsilonStore:
         store = YpsilonStore(client=new_client(), write_options=write_options)
         domain_store[entry.entry_id] = store
     elif store.client.host != host or store.write_options != write_options:
-        store.client.revoke_writes()
-        store.client.close()
+        await store.client.revoke_writes()
+        await store.client.close()
         store.client = new_client()
         store.write_options = write_options
     return store
@@ -226,7 +226,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> b
         report = await report_store(hass, report_id).async_load() if report_id else None
         entry.runtime_data = DiagnosticReport(report)
         return True
-    store = _get_store(hass, entry)
+    store = await _get_store(hass, entry)
 
     coordinator = YpsilonDataUpdateCoordinator(
         hass, entry, store.client, store.field52_cache
@@ -258,7 +258,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         return
     store: YpsilonStore | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if store is not None:
-        await hass.async_add_executor_job(store.client.close)
+        await store.client.close()
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -276,7 +276,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     client = YpsilonLocalClient(host)
     try:
-        identity = await hass.async_add_executor_job(client.read_identity)
+        identity = await client.read_identity()
         mac = identity.get("mac") or client.mac
     except Exception as err:  # noqa: BLE001 - migration is retried later
         _LOGGER.warning(
@@ -287,7 +287,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         return True
     finally:
-        await hass.async_add_executor_job(client.close)
+        await client.close()
 
     if not mac:
         _LOGGER.warning("Device at %s reported no MAC; keeping v1 entry", host)

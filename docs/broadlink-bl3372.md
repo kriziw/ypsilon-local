@@ -11,7 +11,7 @@ Assistant integration today. It is intentionally separate from the F79D codec.
 - module family: BL3372
 - product controller: Runxin F79D
 - BroadLink command carrying product data: `0x6A`
-- Python dependency: `broadlink==0.19.0`
+- Python dependency: `python-broadlink==1.0.6`
 
 The Home Assistant integration still probes for the tested device type/model.
 The transport class is parameterised so research code can test a different

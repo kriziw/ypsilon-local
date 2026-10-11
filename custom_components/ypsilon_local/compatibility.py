@@ -4,11 +4,17 @@ Derived from the standalone diagnostic prepared for issues #17/#22.
 Normal polling and controls never use this collector. Framing, field definitions
 and reference decoding reuse the existing protocol modules. All interpretations
 remain hypotheses for unverified controllers, and resin volume stays unscaled.
+
+The collector is asynchronous because `python-broadlink` 1.0 is. `cancel`
+stays a `threading.Event` deliberately: it is only ever polled with
+`is_set()`, which is safe from the event loop, and keeping the type avoids
+changing how the config flow signals cancellation.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from importlib.metadata import version, PackageNotFoundError
+import asyncio
 import logging
 import platform
 import threading
@@ -187,7 +193,11 @@ class ReadSession:
         self.cancel = cancel
         original_send = device.send_packet
 
-        def checked_send(packet_type: int, payload: bytes) -> bytes:
+        # Still an instance-attribute override of send_packet, which 1.0 keeps
+        # overridable - but the wrapper and the wrapped call are coroutines
+        # now. device.count, device.devtype and device.mac are unchanged in
+        # 1.0, so the header/counter/MAC validation below still applies.
+        async def checked_send(packet_type: int, payload: bytes) -> bytes:
             if self.cancel is not None and self.cancel.is_set():
                 raise ProbeError("cancelled")
             guard_outbound(packet_type, bytes(payload))
@@ -195,7 +205,7 @@ class ReadSession:
             if remaining <= 0:
                 raise ProbeError("time_budget_exhausted")
             device.timeout = min(timeout, remaining)
-            response = bytes(original_send(packet_type, payload))
+            response = bytes(await original_send(packet_type, payload))
             if len(response) < 0x38 or response[:8] != bytes.fromhex("5aa5aa555aa5aa55"):
                 raise ProbeError("invalid_broadlink_header")
             nominal = int.from_bytes(response[0x20:0x22], "little")
@@ -212,7 +222,7 @@ class ReadSession:
 
         device.send_packet = checked_send
 
-    def read(self, fields: list[int]) -> tuple[dict[int, tuple[int, int]], list[int]]:
+    async def read(self, fields: list[int]) -> tuple[dict[int, tuple[int, int]], list[int]]:
         request = build_read(fields)
         for attempt in range(2):
             if self.query_count >= MAX_QUERIES:
@@ -220,11 +230,13 @@ class ReadSession:
             if time.monotonic() >= self.deadline:
                 raise ProbeError("time_budget_exhausted")
             self.query_count += 1
-            response = self.device.send_packet(0x6A, len(request).to_bytes(2, "little") + request)
+            response = await self.device.send_packet(
+                0x6A, len(request).to_bytes(2, "little") + request
+            )
             code = int.from_bytes(response[0x22:0x24], "little", signed=True)
             if code == -5 and attempt == 0:
                 self.transient_retries += 1
-                time.sleep(min(0.3, max(0, self.deadline - time.monotonic())))
+                await asyncio.sleep(min(0.3, max(0, self.deadline - time.monotonic())))
                 continue
             if code:
                 raise ProbeError("broadlink_query_rejected", code)
@@ -252,12 +264,12 @@ def with_dependencies(fields: list[int]) -> list[int]:
     return sorted(result)
 
 
-def scan_fields(session: Any, report: dict[str, Any]) -> None:
+async def scan_fields(session: Any, report: dict[str, Any]) -> None:
     observations = report["queries"]
     latest: dict[int, dict[str, Any]] = {}
     stopped = False
 
-    def query(fields: list[int], phase: str) -> None:
+    async def query(fields: list[int], phase: str) -> None:
         nonlocal stopped
         if stopped:
             return
@@ -268,7 +280,7 @@ def scan_fields(session: Any, report: dict[str, Any]) -> None:
             "started_at_utc": started, "requested_fields": fields,
         }
         try:
-            tlvs, duplicates = session.read(fields)
+            tlvs, duplicates = await session.read(fields)
             item.update(ok=True, returned_fields=sorted(tlvs),
                         missing_requested_fields=sorted(set(fields) - set(tlvs)))
             scoped = {field: pair for field, pair in tlvs.items() if 1 <= field <= 52}
@@ -296,26 +308,26 @@ def scan_fields(session: Any, report: dict[str, Any]) -> None:
         observations.append(item)
 
     _LOGGER.debug("Reading controller identity...")
-    query([1, 34], "identity")
+    await query([1, 34], "identity")
     if 1 not in latest:
-        query([1], "identity_single_field")
+        await query([1], "identity_single_field")
     if 34 not in latest:
-        query([34], "station_single_field")
+        await query([34], "station_single_field")
     _LOGGER.debug("Reading fields 1-52...")
-    query(list(range(1, 53)), "full_read")
+    await query(list(range(1, 53)), "full_read")
     missing = sorted(set(range(1, 53)) - set(latest))
     if missing and not stopped:
         _LOGGER.debug("Recovering missing fields in smaller read-only groups...")
         for start in range(0, len(missing), 8):
             fields = [f for f in missing[start:start + 8] if f not in latest]
             if fields:
-                query(with_dependencies(fields), "fallback_group")
+                await query(with_dependencies(fields), "fallback_group")
     missing = sorted(set(range(1, 53)) - set(latest))
     if missing and not stopped:
         _LOGGER.debug("Trying remaining fields individually (with required unit/volume context)...")
         for field in missing:
             if field not in latest:
-                query(with_dependencies([field]), "fallback_single_field")
+                await query(with_dependencies([field]), "fallback_single_field")
     report["fields"] = [latest[f] for f in sorted(latest)]
     codes = sorted({r["reference_value"] for q in observations for r in q.get("fields", [])
                     if r["field_id"] == 1})
@@ -347,8 +359,9 @@ def scan_fields(session: Any, report: dict[str, Any]) -> None:
     }
 
 
-def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
-          cancel: threading.Event | None = None, identifier_sink: list[str] | None = None) -> dict[str, Any]:
+async def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
+                cancel: threading.Event | None = None,
+                identifier_sink: list[str] | None = None) -> dict[str, Any]:
     report: dict[str, Any] = {
         "script_version": SCRIPT_VERSION, "started_at_utc": utc_now(),
         "python_version": platform.python_version(), "timeout_seconds": timeout,
@@ -363,20 +376,27 @@ def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
     }
     device = None
     try:
+        # The module is still imported as `broadlink`, but since core
+        # 2026.10 the distribution providing it is `python-broadlink`. The
+        # old `broadlink` distribution unpacks over the top of it, which is
+        # what broke core's own BroadLink integration, so this gate now
+        # requires the 1.x line rather than exactly 0.19.0.
         try:
-            report["broadlink_version"] = version("broadlink")
+            report["broadlink_version"] = version("python-broadlink")
         except PackageNotFoundError:
-            raise ProbeError("broadlink_0_19_0_required") from None
-        if report["broadlink_version"] != "0.19.0":
-            raise ProbeError("broadlink_0_19_0_required")
+            raise ProbeError("python_broadlink_1_x_required") from None
+        if report["broadlink_version"].split(".")[0] != "1":
+            raise ProbeError("python_broadlink_1_x_required")
         import broadlink
         if cancel is not None and cancel.is_set():
             raise ProbeError("cancelled")
         deadline = time.monotonic() + max_seconds
         _LOGGER.debug("Discovering BroadLink device...")
-        device = broadlink.hello(host, timeout=min(timeout, max_seconds))
-        if device is None:
-            raise ProbeError("no_device_found")
+        # 1.0 raises NetworkTimeoutError rather than returning None.
+        try:
+            device = await broadlink.hello(host, timeout=min(timeout, max_seconds))
+        except broadlink.exceptions.NetworkTimeoutError:
+            raise ProbeError("no_device_found") from None
         locked = getattr(device, "is_locked", None)
         report["discovery"] = {"ok": True, "devtype": f"0x{int(device.devtype):04x}",
                                "advertised_lock": locked if isinstance(locked, bool) else None}
@@ -388,7 +408,7 @@ def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
         report["authentication"] = {"attempted": True, "ok": False}
         _LOGGER.debug("Performing standard authentication...")
         try:
-            if device.auth() is False:
+            if await device.auth() is False:
                 raise ProbeError("authentication_rejected")
         except Exception as err:
             report["authentication"].update(error=safe_error(err))
@@ -397,10 +417,10 @@ def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
         report["authentication"]["ok"] = True
         report["firmware"] = {"attempted": True, "ok": False}
         try:
-            report["firmware"].update(ok=True, version=int(device.get_fwversion()))
+            report["firmware"].update(ok=True, version=int(await device.get_fwversion()))
         except Exception as err:
             report["firmware"]["error"] = safe_error(err)
-        scan_fields(session, report)
+        await scan_fields(session, report)
     except KeyboardInterrupt:
         report["interrupted"] = True
         report["summary"]["status"] = "interrupted"
@@ -409,11 +429,11 @@ def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
         report["summary"]["status"] = "cancelled" if isinstance(err, ProbeError) and err.reason == "cancelled" else "failed"
     finally:
         report["finished_at_utc"] = utc_now()
-        sock = getattr(device, "sock", None) if device is not None else None
-        if sock is not None:
+        # 1.0 owns the endpoint; aclose() replaces closing a `sock`.
+        if device is not None:
             try:
-                sock.close()
-            except OSError:
+                await device.aclose()
+            except Exception:  # noqa: BLE001 - teardown must not mask the report
                 pass
     code = report.get("identity", {}).get("device_model_code")
     report["controller"] = {

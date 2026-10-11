@@ -11,7 +11,7 @@ la integración Home Assistant y está separado deliberadamente del codec F79D.
 - módulo: BL3372
 - controlador: Runxin F79D
 - comando BroadLink para datos de producto: `0x6A`
-- dependencia Python: `broadlink==0.19.0`
+- dependencia Python: `python-broadlink==1.0.6`
 
 Probar otro devtype en investigación no significa que esa combinación quede
 soportada por Ypsilon.

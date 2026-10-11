@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import asyncio
-from functools import partial
 import threading
 from typing import Any
 from uuid import uuid4
@@ -131,7 +130,7 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         client = YpsilonLocalClient(host)
         try:
             _LOGGER.debug("Starting local setup probe")
-            identity = await self.hass.async_add_executor_job(client.read_identity)
+            identity = await client.read_identity()
             mac = identity.get("mac") or client.mac
             return identity, mac
         except PROBE_ERRORS as err:
@@ -150,7 +149,7 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             raise
         finally:
-            await self.hass.async_add_executor_job(client.close)
+            await client.close()
 
     async def async_step_dhcp(
         self, discovery_info: DhcpServiceInfo
@@ -256,10 +255,11 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _async_collect_report(self) -> None:
         assert self._diagnostic_host is not None
         try:
-            report = await self.hass.async_add_executor_job(partial(
-                probe, self._diagnostic_host, cancel=self._diagnostic_cancel,
+            report = await probe(
+                self._diagnostic_host,
+                cancel=self._diagnostic_cancel,
                 identifier_sink=self._diagnostic_identifiers,
-            ))
+            )
             self._diagnostic_report = await self.hass.async_add_executor_job(prepare_report, report)
         except asyncio.CancelledError:
             self._diagnostic_cancel.set()

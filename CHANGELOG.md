@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [2.10.0] - 2026-10-11
+
+### Changed
+- **Moved to the `python-broadlink` distribution, pinned at `1.0.6`.** Home Assistant Core 2026.10 moved its own BroadLink integration to the same distribution. Both `broadlink` and `python-broadlink` unpack into the same `site-packages/broadlink/` module directory, so the previous `broadlink==0.19.0` requirement was installed over the top of core's copy and replaced `exceptions.py` with a version lacking `EndpointClosedError`. Core's BroadLink integration then failed to import and every BroadLink device in the installation lost its entities, including unrelated Hysen thermostats. Home Assistant compares only distribution names when checking requirements, so `python-broadlink==1.0.6` still counted as satisfied and was never reinstalled; recovery needs `ha core rebuild` or a core image replacement, not a restart. See home-assistant/core#184800.
+- The transport, the F79D client, `YpsilonLocalClient` and the compatibility collector are now **asynchronous**. `python-broadlink` 1.0 made `hello`, `auth`, `get_fwversion` and `send_packet` coroutines with no synchronous compatibility layer; `decrypt` stayed synchronous. The eleven `async_add_executor_job` hops in `__init__.py`, `coordinator.py` and `config_flow.py` are gone and the integration awaits the library directly. `threading.Lock` became `asyncio.Lock` in the transport, the client and the adapter.
+- Session teardown uses `await device.aclose()`. 1.0 owns the UDP endpoint and no longer exposes a `sock` attribute, in the transport and in the collector's teardown.
+- `broadlink.hello()` raises `NetworkTimeoutError` instead of returning `None`, so the unreachable-device case is translated from that exception and the unreachable `if device is None` guards are removed.
+- The compatibility collector's dependency gate now requires the `python-broadlink` 1.x line instead of exactly `broadlink==0.19.0`; its probe-error reason changed from `broadlink_0_19_0_required` to `python_broadlink_1_x_required`. The collector keeps its instance override of `send_packet` and its header, counter, device-type and MAC validation: `Device.count`, `Device.devtype` and `Device.mac` are unchanged in 1.0 and `send_packet` is still overridable.
+- `requirements-test-offline.txt` and the documented dependency in `docs/broadlink-bl3372.md` and `docs/troubleshooting.md` follow the new pin in all three languages.
+
+### Added
+- A read transaction failing with `ConnectionClosedError` - including `EndpointClosedError`, new in `python-broadlink` 1.0.2 - now spends the existing session budget on one fresh session instead of failing outright. 1.0 keeps one persistent UDP endpoint per device, so a mid-request close is a new and recoverable failure mode. The write path deliberately does **not** retry it: a closed endpoint after submission is exactly the ambiguous case the write-once rule exists for.
+
+### Notes
+- `python-broadlink` 1.0 requires **Python 3.13 or newer**. The offline CI job already pinned 3.13 and the Home Assistant jobs 3.14.
+- `python-broadlink` is `DAB-LABS/python-broadlink`, a maintained fork of `mjg59/python-broadlink`; the import name remains `broadlink`.
+- The `runxin/` codec is unchanged and still imports neither `homeassistant` nor `broadlink`. Only the transport contract became awaitable.
+- No wire-format change. Field encodings, per-model write permissions, the write-once rule and strict post-write read-back reconciliation all behave as in 2.9.3.
+- The `ValueError` guard around authentication was written for a 0.19.0 defect and is retained unverified against 1.0.x, where it may no longer be reachable.
+
 ## [2.9.3] - 2026-10-10
 
 - Correct only physically confirmed field-2 language labels: model 1/code 7 is Dutch and reference G6 model 9/code 3 is Spanish. Retain the reference enum for other model/code pairs, raw codes, disabled-by-default diagnostic entities and existing unique IDs. Add Dutch translations and model-aware enum options.

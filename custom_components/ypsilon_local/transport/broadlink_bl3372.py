@@ -10,14 +10,19 @@ sent at most once: after a timeout/outer error the command may already have been
 accepted by the physical controller, so retrying blindly could duplicate a
 mechanical action. The Home Assistant layer reconciles ambiguous writes through
 an independent read-back instead.
+
+This module is asynchronous because `python-broadlink` 1.0 is: `hello`,
+`auth`, `get_fwversion` and `send_packet` are coroutines, while `decrypt`
+stayed synchronous. Public method names are unchanged - `transact`,
+`transact_write`, `invalidate`, `close` - they are coroutines now, matching
+`RunxinTransport`.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
-import threading
-import time
 from typing import Any
 
 import broadlink
@@ -103,7 +108,7 @@ class BroadlinkBL3372Transport(RunxinTransport):
 
         self._device: Any = None
         self._firmware: int | None = None
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
         self.transient_retries = 0
         self.reauth_count = 0
         self._stage = "not_started"
@@ -158,33 +163,39 @@ class BroadlinkBL3372Transport(RunxinTransport):
             self._last_error["error_code"], self._devtype, self._is_locked,
         )
 
-    def _drop_session(self) -> None:
+    async def _drop_session(self) -> None:
+        # 1.0 owns the UDP endpoint and exposes no `sock`; aclose() is the
+        # documented teardown. Best-effort: a session being dropped because it
+        # already failed must not raise again here.
         device = self._device
         self._device = None
-        sock = getattr(device, "sock", None) if device else None
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
+        if device is None:
+            return
+        try:
+            await device.aclose()
+        except BROADLINK_EXCEPTIONS:
+            pass
 
-    def invalidate(self) -> None:
+    async def invalidate(self) -> None:
         """Drop the current authenticated BroadLink session."""
-        self._drop_session()
+        await self._drop_session()
 
-    def close(self) -> None:
-        """Close the BroadLink socket and discard the session."""
-        with self._lock:
-            self._drop_session()
+    async def close(self) -> None:
+        """Close the BroadLink endpoint and discard the session."""
+        async with self._lock:
+            await self._drop_session()
 
-    def _connect(self) -> Any:
+    async def _connect(self) -> Any:
         self._stage = "discovery"
         self._devtype = None
         self._is_locked = None
         _LOGGER.debug("Starting BroadLink discovery (timeout=%ss)", self.timeout)
-        device = broadlink.hello(self.host, timeout=self.timeout)
-        if device is None:
-            raise RunxinTransportError("No BroadLink device found")
+        # 1.0 raises NetworkTimeoutError instead of returning None, so the
+        # old `if device is None` guard could never fire again.
+        try:
+            device = await broadlink.hello(self.host, timeout=self.timeout)
+        except broadlink.exceptions.NetworkTimeoutError as err:
+            raise RunxinTransportError("No BroadLink device found") from err
         self._stage = "device_type"
         self._devtype = int(device.devtype)
         advertised_lock = getattr(device, "is_locked", None)
@@ -204,32 +215,32 @@ class BroadlinkBL3372Transport(RunxinTransport):
             device.timeout = self.timeout
             self._stage = "authentication"
             try:
-                authenticated = device.auth()
+                authenticated = await device.auth()
             except broadlink.exceptions.AuthenticationError as err:
                 raise BroadlinkAuthenticationError(err.errno, self._is_locked) from err
             except ValueError as err:
-                # broadlink 0.19.0 can pass a short decrypted auth payload to AES
-                # and raise ValueError for its key length. This is a malformed
-                # response, not a proven rejection or a reason to unlock/retry.
+                # broadlink 0.19.0 could pass a short decrypted auth payload
+                # to AES and raise ValueError for its key length. This is a
+                # malformed response, not a proven rejection or a reason to
+                # unlock/retry. Retained unverified against python-broadlink
+                # 1.0.x, where it may no longer be reachable; it is harmless.
                 raise RunxinTransportError("Invalid BroadLink authentication response") from err
             if authenticated is False:
                 raise BroadlinkAuthenticationError(None, self._is_locked)
         except Exception:
-            # Discovery created a socket but authentication did not establish
+            # Discovery opened an endpoint but authentication did not establish
             # a reusable session. Release it before propagating the same error.
-            sock = getattr(device, "sock", None)
-            if sock is not None:
-                try:
-                    sock.close()
-                except OSError:
-                    pass
+            try:
+                await device.aclose()
+            except BROADLINK_EXCEPTIONS:
+                pass
             raise
         self._device = device
         _LOGGER.debug("BroadLink local authentication succeeded")
 
         if self._firmware is None:
             try:
-                self._firmware = int(device.get_fwversion())
+                self._firmware = int(await device.get_fwversion())
             except Exception as err:  # noqa: BLE001 - cosmetic metadata only
                 self._firmware = None
                 _LOGGER.debug(
@@ -237,10 +248,10 @@ class BroadlinkBL3372Transport(RunxinTransport):
                 )
         return device
 
-    def _transact_once(self, frame: bytes) -> bytes:
-        device = self._device or self._connect()
+    async def _transact_once(self, frame: bytes) -> bytes:
+        device = self._device or await self._connect()
         self._stage = "request"
-        response = bytes(device.send_packet(0x6A, pack_tfb(frame)))
+        response = bytes(await device.send_packet(0x6A, pack_tfb(frame)))
         self._stage = "response"
         if len(response) < 0x38:
             raise RunxinTransportError("Short BroadLink response")
@@ -253,6 +264,7 @@ class BroadlinkBL3372Transport(RunxinTransport):
         if not encrypted or len(encrypted) % 16:
             raise RunxinTransportError("Invalid BroadLink encrypted length")
         try:
+            # decrypt() is the one call that stayed synchronous in 1.0.
             plaintext = device.decrypt(encrypted)
         except BROADLINK_EXCEPTIONS as err:
             raise RunxinTransportError(f"BroadLink decrypt failed: {err}") from err
@@ -260,24 +272,37 @@ class BroadlinkBL3372Transport(RunxinTransport):
         self._stage = "ready"
         return result
 
-    def _transact_read_resilient(self, frame: bytes) -> bytes:
+    async def _transact_read_resilient(self, frame: bytes) -> bytes:
         """Retry bounded, idempotent read transactions.
 
         Outer -5 is empirically transient on the tested BL3372/F79D. The exact
         internal cause is not known. Authentication-like outer errors get one
         fresh session. These budgets are independent so an auth refresh cannot
         accidentally consume the last transient retry slot.
+
+        ConnectionClosedError shares the session budget. 1.0 keeps one
+        persistent UDP endpoint per device and raises EndpointClosedError (a
+        ConnectionClosedError subclass, new in 1.0.2) when that endpoint is
+        closed mid-request. On a read that is recoverable with a fresh
+        session; without this it would surface as a hard transport error.
         """
         transient_attempt = 0
         reauth_remaining = 1
         while True:
             try:
-                return self._transact_once(frame)
+                return await self._transact_once(frame)
+            except broadlink.exceptions.ConnectionClosedError:
+                if not reauth_remaining:
+                    raise
+                reauth_remaining -= 1
+                self.reauth_count += 1
+                await self._drop_session()
+                continue
             except BroadlinkOuterError as err:
                 if err.code in self.auth_error_codes and reauth_remaining:
                     reauth_remaining -= 1
                     self.reauth_count += 1
-                    self._drop_session()
+                    await self._drop_session()
                     continue
                 if (
                     err.code == self.transient_error_code
@@ -286,40 +311,42 @@ class BroadlinkBL3372Transport(RunxinTransport):
                     base = self.transient_delays[transient_attempt]
                     transient_attempt += 1
                     self.transient_retries += 1
-                    time.sleep(base + random.uniform(0, base / 2))
+                    await asyncio.sleep(base + random.uniform(0, base / 2))
                     continue
                 raise
 
-    def transact(self, frame: bytes) -> bytes:
+    async def transact(self, frame: bytes) -> bytes:
         """Carry one read/idempotent raw Runxin request through BroadLink."""
-        with self._lock:
+        async with self._lock:
             try:
-                return self._transact_read_resilient(frame)
+                return await self._transact_read_resilient(frame)
             except RunxinTransportError as err:
                 self._record_failure(err)
-                self._drop_session()
+                await self._drop_session()
                 raise
             except BROADLINK_EXCEPTIONS as err:
                 self._record_failure(err)
-                self._drop_session()
+                await self._drop_session()
                 raise RunxinTransportError(str(err)) from err
 
-    def transact_write(self, frame: bytes) -> bytes:
+    async def transact_write(self, frame: bytes) -> bytes:
         """Send one Runxin write exactly once and never retry it blindly.
 
         Any transport failure after packet submission is ambiguous: the F79D
         may have executed the command even if the acknowledgement was lost.
         Callers must reconcile by reading physical state before deciding whether
-        a retry is safe.
+        a retry is safe. Note the deliberate asymmetry with reads: the
+        ConnectionClosedError retry above is NOT repeated here, because a
+        closed endpoint after submission is exactly the ambiguous case.
         """
-        with self._lock:
+        async with self._lock:
             try:
-                return self._transact_once(frame)
+                return await self._transact_once(frame)
             except RunxinTransportError as err:
                 self._record_failure(err)
-                self._drop_session()
+                await self._drop_session()
                 raise
             except BROADLINK_EXCEPTIONS as err:
                 self._record_failure(err)
-                self._drop_session()
+                await self._drop_session()
                 raise RunxinTransportError(str(err)) from err

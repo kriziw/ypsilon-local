@@ -38,7 +38,7 @@ per descarregar: utilitza l'avís del log o el script independent.
 
 ## Informe independent
 
-Des de l'arrel del repositori, en un entorn Python que ja tingui `broadlink==0.19.0`,
+Des de l'arrel del repositori, en un entorn Python que ja tingui `python-broadlink==1.0.6`,
 executa això substituint `DEVICE_IP` localment:
 
 ```bash
