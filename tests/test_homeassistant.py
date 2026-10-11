@@ -58,7 +58,7 @@ def _report(code=14, *, status="partial"):
 async def test_unknown_model_offers_named_diagnostics_without_starting_scan(hass, monkeypatch):
     flow = _flow(hass)
     flow._async_probe = AsyncMock(return_value=({"deviceModel":15}, TEST_MAC))
-    collect = Mock()
+    collect = AsyncMock()
     monkeypatch.setattr(flow_mod, "probe", collect)
     result = await flow.async_step_user({"host":TEST_HOST})
     assert result["step_id"] == "diagnostic_offer"
@@ -165,7 +165,7 @@ async def test_simultaneous_diagnostic_flow_cannot_open_another_session(hass, mo
     monkeypatch.setattr(flow,"_async_in_progress",Mock(return_value=[{
         "flow_id":"other-flow","context":{"diagnostic_host":TEST_HOST},
     }]))
-    collect=Mock()
+    collect=AsyncMock()
     monkeypatch.setattr(flow_mod,"probe",collect)
     result=await flow.async_step_diagnostic_scan()
     assert result["reason"] == "diagnostic_in_progress"
@@ -494,7 +494,7 @@ async def test_real_probe_logs_safe_authentication_context_before_entry_exists(h
     transport_mod = load("transport.broadlink_bl3372")
     device = Mock(devtype=0x520F, is_locked=True, auth=AsyncMock(), get_fwversion=AsyncMock(), aclose=AsyncMock())
     device.auth.side_effect = broadlink.exceptions.AuthenticationError(-1, f"{TEST_HOST} {TEST_MAC} secret-key")
-    monkeypatch.setattr(transport_mod.broadlink, "hello", Mock(return_value=device))
+    monkeypatch.setattr(transport_mod.broadlink, "hello", AsyncMock(return_value=device))
     with caplog.at_level(logging.DEBUG):
         result = await _flow(hass).async_step_user({"host": TEST_HOST})
     assert result["errors"] == {"base": "device_locked"}
@@ -515,7 +515,8 @@ async def test_real_short_auth_response_is_connection_error_even_with_advertised
     device = transport_mod.broadlink.Device((TEST_HOST, 80), bytes(6), 0x520F, is_locked=True)
     device.send_packet = AsyncMock(return_value=bytes(0x38) + bytes(16))
     device.decrypt = Mock(return_value=bytes(16))
-    monkeypatch.setattr(transport_mod.broadlink, "hello", Mock(return_value=device))
+    device.aclose = AsyncMock()
+    monkeypatch.setattr(transport_mod.broadlink, "hello", AsyncMock(return_value=device))
     with caplog.at_level(logging.WARNING):
         result = await _flow(hass).async_step_user({"host": TEST_HOST})
     assert result["errors"] == {"base": "cannot_connect"}
